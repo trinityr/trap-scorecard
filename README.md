@@ -5,6 +5,8 @@ the scorecard frontend as static files. SSL and the reverse proxy are
 handled by your existing Nginx Proxy Manager VM, not by anything in this
 stack.
 
+![Trap Scorecard leaderboard screenshot](docs/screenshot.png)
+
 ## Layout
 ```
 docker-compose.yml
