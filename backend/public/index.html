@@ -94,6 +94,24 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
 .auth-tab.active{background:var(--accent-clay);color:#1a0f08;font-weight:600;}
 .admin-users-table{overflow-x:auto;}
 .badge{display:inline-block;font-size:10px;padding:2px 7px;border-radius:10px;border:1px solid var(--accent-brass);color:var(--accent-brass);font-family:'Oswald',sans-serif;letter-spacing:.04em;}
+.metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:4px;}
+.metric{background:var(--bg-panel-raised);border-radius:8px;padding:10px 12px;}
+.metric .label{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;}
+.metric .value{font-family:'IBM Plex Mono',monospace;font-size:20px;color:var(--accent-clay);}
+.leader-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+.leader-callout{flex:1;min-width:200px;background:linear-gradient(135deg,var(--bg-panel-raised),var(--bg-panel));border:1px solid var(--accent-clay);border-radius:10px;padding:14px;}
+.leader-callout .lbl{font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.08em;font-size:11px;color:var(--accent-brass);margin-bottom:6px;}
+.leader-callout .who{font-size:16px;font-weight:700;margin-bottom:2px;}
+.leader-callout .sub{font-size:11px;color:var(--text-muted);margin-bottom:6px;}
+.leader-callout .pts{font-family:'IBM Plex Mono',monospace;font-size:22px;color:var(--accent-clay);}
+.site-columns{display:flex;gap:16px;flex-wrap:wrap;}
+.site-col{flex:1;min-width:220px;}
+.site-col h4{font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.05em;font-size:12px;color:var(--text-muted);margin:0 0 8px;}
+.mini-row{display:flex;align-items:center;gap:10px;padding:7px 2px;border-bottom:1px solid var(--line);font-size:13px;}
+.mini-rank{width:20px;color:var(--accent-brass);font-family:'IBM Plex Mono',monospace;font-size:12px;flex-shrink:0;}
+.mini-name{flex:1;}
+.mini-name .sub{display:block;font-size:10px;color:var(--text-muted);}
+.mini-pts{font-family:'IBM Plex Mono',monospace;color:var(--accent-clay);}
 @media(max-width:520px){main{padding:16px 12px;} .lb-avg{width:54px;font-size:15px;}}
 </style>
 </head>
@@ -140,7 +158,8 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
 
 <div id="appShell" style="display:none">
 <div class="tabs" id="tabsBar">
-  <button class="tab active" data-tab="new">New Round</button>
+  <button class="tab active" data-tab="dashboard">Dashboard</button>
+  <button class="tab" data-tab="new">New Round</button>
   <button class="tab" data-tab="board">Leaderboard</button>
   <button class="tab" data-tab="trends">Trends</button>
   <button class="tab" data-tab="history">History</button>
@@ -148,7 +167,34 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
 
 <main>
 
-  <section class="panel active" id="panel-new">
+  <section class="panel active" id="panel-dashboard">
+    <div class="card">
+      <h3 id="dashboardTeamHeading">Your team</h3>
+      <div class="metric-grid" id="dashboardMetrics"></div>
+    </div>
+    <div class="card">
+      <h3>Your team's leaderboard</h3>
+      <div id="dashboardTeamBoard"></div>
+      <div class="row-actions"><button class="btn ghost small" id="dashboardViewFullBoard">View full leaderboard</button></div>
+    </div>
+    <div class="card">
+      <h3>Site-wide scoreboard</h3>
+      <div class="note" style="margin-top:0;margin-bottom:12px">Ranked by total combined score across every round ever logged, across all teams.</div>
+      <div class="leader-row" id="siteLeaderCallouts"></div>
+      <div class="site-columns">
+        <div class="site-col">
+          <h4>Top shooters</h4>
+          <div id="siteTopShooters"></div>
+        </div>
+        <div class="site-col">
+          <h4>Top teams</h4>
+          <div id="siteTopTeams"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-new">
     <div class="card">
       <h3>1 — Upload the sheet</h3>
       <label class="upload" id="uploadZone">
@@ -335,6 +381,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
       state.activeTab = btn.dataset.tab;
       document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active', b===btn));
       document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active', p.id === 'panel-'+btn.dataset.tab));
+      if(btn.dataset.tab==='dashboard') renderDashboard();
       if(btn.dataset.tab==='board') renderLeaderboard();
       if(btn.dataset.tab==='trends') renderTrends();
       if(btn.dataset.tab==='history') renderHistory();
@@ -343,9 +390,14 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
   }
   document.querySelectorAll('.tab').forEach(bindTabButton);
 
+  $('#dashboardViewFullBoard').addEventListener('click', ()=>{
+    document.querySelector('.tab[data-tab="board"]').click();
+  });
+
   async function startApp(){
     await loadWeeks();
     $('#draftDate').value = todayISO();
+    renderDashboard();
   }
 
   async function loadWeeks(){
@@ -533,6 +585,63 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
         <div style="flex:1"><div class="lb-name">${escapeHtml(r.name)}</div><div class="lb-sub">${r.rounds} round${r.rounds===1?'':'s'} · best ${r.best}</div></div>
         <div class="lb-avg">${r.avg.toFixed(1)}</div>
       </div>`).join('');
+  }
+
+  async function renderDashboard(){
+    // --- Your team card ---
+    $('#dashboardTeamHeading').textContent = 'Your team — ' + (state.user.teamName || '—');
+    const agg = aggregate().filter(r=>r.rounds>0);
+    const totalRounds = state.weeks.length;
+    const allTotals = agg.flatMap(r=>r.totals);
+    const teamAvg = allTotals.length ? (allTotals.reduce((a,b)=>a+b,0)/allTotals.length) : null;
+    const bestEver = allTotals.length ? Math.max(...allTotals) : null;
+    $('#dashboardMetrics').innerHTML = `
+      <div class="metric"><div class="label">Rounds logged</div><div class="value">${totalRounds}</div></div>
+      <div class="metric"><div class="label">Active shooters</div><div class="value">${agg.length}</div></div>
+      <div class="metric"><div class="label">Team average</div><div class="value">${teamAvg!=null?teamAvg.toFixed(1):'—'}</div></div>
+      <div class="metric"><div class="label">Best round ever</div><div class="value">${bestEver!=null?bestEver:'—'}</div></div>
+    `;
+
+    // --- Condensed team leaderboard (top 5) ---
+    const sorted = [...agg].sort((a,b)=>b.avg-a.avg).slice(0,5);
+    $('#dashboardTeamBoard').innerHTML = sorted.length ? sorted.map((r,i)=>`
+      <div class="mini-row"><span class="mini-rank">${i+1}</span><div class="mini-name">${escapeHtml(r.name)}</div><span class="mini-pts">${r.avg.toFixed(1)}</span></div>
+    `).join('') : '<div class="empty">No rounds saved yet.</div>';
+
+    // --- Site-wide scoreboard ---
+    try{
+      const site = await api('/site/leaderboard');
+      renderSiteScoreboard(site);
+    }catch(e){
+      console.error(e);
+      $('#siteLeaderCallouts').innerHTML = '<div class="empty">Could not load the site-wide scoreboard.</div>';
+      $('#siteTopShooters').innerHTML = ''; $('#siteTopTeams').innerHTML = '';
+    }
+  }
+
+  function renderSiteScoreboard(site){
+    const topShooter = site.individuals[0];
+    const topTeam = site.teams[0];
+    $('#siteLeaderCallouts').innerHTML = `
+      <div class="leader-callout">
+        <div class="lbl">Individual leader</div>
+        <div class="who">${topShooter ? escapeHtml(topShooter.name) : '—'}</div>
+        <div class="sub">${topShooter ? escapeHtml(topShooter.team_name) : 'No rounds logged yet'}</div>
+        <div class="pts">${topShooter ? topShooter.total_points : '—'} pts</div>
+      </div>
+      <div class="leader-callout">
+        <div class="lbl">Leading team</div>
+        <div class="who">${topTeam ? escapeHtml(topTeam.name) : '—'}</div>
+        <div class="sub">${topTeam ? topTeam.rounds + ' rounds logged' : 'No rounds logged yet'}</div>
+        <div class="pts">${topTeam ? topTeam.total_points : '—'} pts</div>
+      </div>
+    `;
+    $('#siteTopShooters').innerHTML = site.individuals.length ? site.individuals.map((s,i)=>`
+      <div class="mini-row"><span class="mini-rank">${i+1}</span><div class="mini-name">${escapeHtml(s.name)}<span class="sub">${escapeHtml(s.team_name)}</span></div><span class="mini-pts">${s.total_points}</span></div>
+    `).join('') : '<div class="empty">No rounds logged yet.</div>';
+    $('#siteTopTeams').innerHTML = site.teams.length ? site.teams.map((t,i)=>`
+      <div class="mini-row"><span class="mini-rank">${i+1}</span><div class="mini-name">${escapeHtml(t.name)}<span class="sub">${t.rounds} rounds</span></div><span class="mini-pts">${t.total_points}</span></div>
+    `).join('') : '<div class="empty">No rounds logged yet.</div>';
   }
 
   function renderTrends(){

@@ -12,6 +12,7 @@ import teamsRouter from "./routes/teams";
 import roundsRouter from "./routes/rounds";
 import statsRouter from "./routes/stats";
 import extractRouter from "./routes/extract";
+import siteRouter from "./routes/site";
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -68,6 +69,7 @@ app.use("/api/teams", teamsRouter);
 app.use("/api/rounds", roundsRouter);
 app.use("/api/stats", statsRouter);
 app.use("/api/extract", extractRouter);
+app.use("/api/site", siteRouter);
 
 // Serve the frontend — must come after the /api routes above so those
 // take priority.

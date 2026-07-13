@@ -33,6 +33,7 @@ backend/
     routes/teams.ts         <- GET /api/teams (public, needed for the registration form)
     routes/rounds.ts        <- POST/GET/DELETE /api/rounds (scoped to your session's team)
     routes/stats.ts         <- GET /api/stats/leaderboard, /api/stats/trends (scoped to your team)
+    routes/site.ts          <- GET /api/site/leaderboard (cross-team scoreboard)
     routes/extract.ts       <- POST /api/extract (reads scoresheet photos via Claude)
 ```
 
@@ -119,6 +120,18 @@ docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migratio
 This is very unlikely to apply to you if you're adopting both changes at
 once — the auth migration above assumes teams already exist.
 
+## Dashboard
+
+Signed-in users land on a Dashboard tab showing their own team's quick
+stats (rounds logged, active shooters, team average, best round ever)
+and a condensed version of their team's leaderboard, plus a **site-wide
+scoreboard** ranking every shooter and every team across the whole
+deployment — not just your own team. Ranking is by total combined score
+across every round ever logged (so it rewards consistent, frequent
+shooting, not just a single good week). The leading individual and
+leading team are called out prominently at the top, with a top-10 list
+below each.
+
 ## API
 
 - `POST /api/auth/register` — body: `{ "email", "password", "teamId" or "newTeamName" }`
@@ -133,6 +146,7 @@ once — the auth migration above assumes teams already exist.
 - `GET /api/rounds` — every saved round for your team — requires sign-in
 - `DELETE /api/rounds/:id` — requires sign-in, only deletes rounds belonging to your own team
 - `GET /api/stats/leaderboard` / `GET /api/stats/trends` — requires sign-in, scoped to your team
+- `GET /api/site/leaderboard` — requires sign-in, cross-team scoreboard: `{ individuals: [...], teams: [...] }`, each ranked by total combined score, top 10
 - `POST /api/extract` — body: `{ "image": "<base64, no data: prefix>" }` — requires sign-in, returns parsed `{date, shooters}` read from the photo
 
 ## Local development without Docker
