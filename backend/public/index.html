@@ -21,40 +21,16 @@
 }
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;background:var(--bg-void);}
-body{
-  color:var(--text-primary);
-  font-family:'Inter',sans-serif;
-  min-height:100vh;
-}
+body{color:var(--text-primary);font-family:'Inter',sans-serif;min-height:100vh;}
 .mono{font-family:'IBM Plex Mono',monospace;}
-.hero{
-  padding:36px 28px 20px;
-  background:linear-gradient(180deg,var(--bg-panel-raised) 0%,var(--bg-void) 100%);
-  border-bottom:1px solid var(--line);
-  text-align:center;
-}
-.eyebrow{
-  font-family:'IBM Plex Mono',monospace;letter-spacing:.28em;font-size:11px;color:var(--accent-brass);margin-bottom:8px;
-}
-.hero h1{
-  font-family:'Oswald',sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:.03em;
-  font-size:clamp(28px,5vw,42px);margin:0 0 6px;
-}
-.hero p{color:var(--text-muted);margin:0 0 18px;font-size:14px;}
-.team-bar{display:flex;justify-content:center;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
-.team-bar select{
-  background:var(--bg-panel-raised);border:1px solid var(--line);color:var(--text-primary);
-  padding:8px 12px;border-radius:6px;font-family:'Oswald',sans-serif;text-transform:uppercase;
-  letter-spacing:.04em;font-size:12px;cursor:pointer;
-}
-.tabs{
-  display:flex;gap:2px;padding:14px 16px 0;background:var(--bg-void);border-bottom:1px solid var(--line);overflow-x:auto;
-  position:sticky;top:0;z-index:10;
-}
-.tab{
-  background:none;border:none;color:var(--text-muted);font-family:'Oswald',sans-serif;text-transform:uppercase;
-  letter-spacing:.06em;font-size:13px;padding:10px 16px;cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;
-}
+.hero{padding:32px 28px 16px;background:linear-gradient(180deg,var(--bg-panel-raised) 0%,var(--bg-void) 100%);border-bottom:1px solid var(--line);text-align:center;}
+.eyebrow{font-family:'IBM Plex Mono',monospace;letter-spacing:.28em;font-size:11px;color:var(--accent-brass);margin-bottom:8px;}
+.hero h1{font-family:'Oswald',sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:.03em;font-size:clamp(28px,5vw,42px);margin:0 0 6px;}
+.hero p{color:var(--text-muted);margin:0 0 12px;font-size:14px;}
+.session-bar{display:flex;justify-content:center;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--text-muted);}
+.session-bar b{color:var(--text-primary);}
+.tabs{display:flex;gap:2px;padding:14px 16px 0;background:var(--bg-void);border-bottom:1px solid var(--line);overflow-x:auto;position:sticky;top:0;z-index:10;}
+.tab{background:none;border:none;color:var(--text-muted);font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.06em;font-size:13px;padding:10px 16px;cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;}
 .tab.active{color:var(--text-primary);border-bottom-color:var(--accent-clay);}
 .tab:hover{color:var(--text-primary);}
 main{padding:22px 22px 48px;max-width:900px;margin:0 auto;}
@@ -64,29 +40,31 @@ main{padding:22px 22px 48px;max-width:900px;margin:0 auto;}
 .card{background:var(--bg-panel);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:16px;}
 .card h3{font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.05em;font-size:15px;margin:0 0 12px;color:var(--accent-brass);}
 .note{font-size:12px;color:var(--text-muted);margin-top:8px;line-height:1.5;}
-.btn{
-  font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.05em;font-size:13px;background:var(--accent-clay);
-  color:#1a0f08;border:none;padding:10px 18px;border-radius:6px;cursor:pointer;font-weight:600;
-}
+.btn{font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.05em;font-size:13px;background:var(--accent-clay);color:#1a0f08;border:none;padding:10px 18px;border-radius:6px;cursor:pointer;font-weight:600;}
 .btn:hover{background:#ff8046;}
 .btn:disabled{background:var(--line);color:var(--text-muted);cursor:not-allowed;}
 .btn.ghost{background:none;border:1px solid var(--line);color:var(--text-primary);}
 .btn.ghost:hover{border-color:var(--accent-brass);color:var(--accent-brass);}
 .btn.small{padding:6px 10px;font-size:11px;}
 .btn.danger{background:none;border:1px solid var(--bad);color:var(--bad);}
-.upload{border:2px dashed var(--line);border-radius:10px;padding:26px;text-align:center;cursor:pointer;transition:border-color .15s;display:block;}
+.upload{border:2px dashed var(--line);border-radius:10px;padding:26px;text-align:center;cursor:pointer;display:block;}
 .upload:hover{border-color:var(--accent-clay);}
 .upload input{display:none;}
-.upload .hint{color:var(--text-muted);font-size:13px;margin-top:6px;}
+.hint{color:var(--text-muted);font-size:13px;margin-top:6px;}
 .preview{max-width:100%;max-height:280px;border-radius:8px;margin-top:12px;display:block;}
 .row-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;}
 .field{margin-bottom:12px;}
 .field label{display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em;}
-.field input[type=date]{background:var(--bg-panel-raised);border:1px solid var(--line);color:var(--text-primary);padding:8px 10px;border-radius:6px;font-family:'IBM Plex Mono',monospace;}
+.field input[type=date],.field input[type=text],.field input[type=email],.field input[type=password],.field select{
+  width:100%;background:var(--bg-panel-raised);border:1px solid var(--line);color:var(--text-primary);
+  padding:8px 10px;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:13px;
+}
+.field.checkbox{display:flex;align-items:center;gap:8px;}
+.field.checkbox input{width:auto;}
 table.tbl{width:100%;border-collapse:collapse;font-size:13px;}
 table.tbl th{font-family:'Oswald',sans-serif;text-transform:uppercase;font-size:11px;letter-spacing:.05em;color:var(--text-muted);text-align:left;padding:6px 4px;border-bottom:1px solid var(--line);}
 table.tbl td{padding:5px 4px;border-bottom:1px solid var(--line);}
-table.tbl input{width:100%;background:var(--bg-panel-raised);border:1px solid var(--line);color:var(--text-primary);padding:6px 6px;border-radius:5px;font-family:'IBM Plex Mono',monospace;font-size:13px;}
+table.tbl input,table.tbl select{width:100%;background:var(--bg-panel-raised);border:1px solid var(--line);color:var(--text-primary);padding:6px 6px;border-radius:5px;font-family:'IBM Plex Mono',monospace;font-size:13px;}
 table.tbl input.name-input{font-family:'Inter',sans-serif;}
 table.tbl .station-cell input{width:44px;text-align:center;}
 table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--accent-clay);text-align:center;}
@@ -110,6 +88,12 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
 .empty{color:var(--text-muted);text-align:center;padding:30px 10px;font-size:14px;}
 .toast{position:sticky;bottom:10px;background:var(--good);color:#12200c;padding:8px 14px;border-radius:6px;font-size:13px;font-weight:600;text-align:center;margin-top:10px;display:none;}
 .error{background:rgba(198,92,74,.15);border:1px solid var(--bad);color:#f0b3a8;padding:10px 14px;border-radius:6px;font-size:13px;margin-top:10px;display:none;}
+.auth-wrap{max-width:380px;margin:40px auto;padding:0 16px;}
+.auth-tabs{display:flex;gap:0;margin-bottom:16px;border:1px solid var(--line);border-radius:8px;overflow:hidden;}
+.auth-tab{flex:1;background:var(--bg-panel);border:none;color:var(--text-muted);font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.05em;font-size:13px;padding:10px;cursor:pointer;}
+.auth-tab.active{background:var(--accent-clay);color:#1a0f08;font-weight:600;}
+.admin-users-table{overflow-x:auto;}
+.badge{display:inline-block;font-size:10px;padding:2px 7px;border-radius:10px;border:1px solid var(--accent-brass);color:var(--accent-brass);font-family:'Oswald',sans-serif;letter-spacing:.04em;}
 @media(max-width:520px){main{padding:16px 12px;} .lb-avg{width:54px;font-size:15px;}}
 </style>
 </head>
@@ -119,24 +103,43 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
   <div class="eyebrow">SQUAD SCORECARD</div>
   <h1>Trap Line Stats</h1>
   <p>Snap the sheet. Track the squad.</p>
-  <div class="team-bar" id="teamBar" style="display:none">
-    <select id="teamSelect"></select>
-    <button class="btn ghost small" id="newTeamBtn">+ New team</button>
-  </div>
+  <div class="session-bar" id="sessionBar" style="display:none"></div>
   <div class="field-arc" id="fieldArc"></div>
 </div>
 
-<div class="card" id="noTeamCard" style="display:none;max-width:420px;margin:20px auto;">
-  <h3>Create your first team</h3>
-  <div class="field">
-    <label>Team name</label>
-    <input type="text" id="firstTeamName" placeholder="e.g. Saturday Squad" style="width:100%;background:var(--bg-panel-raised);border:1px solid var(--line);color:var(--text-primary);padding:8px 10px;border-radius:6px;"/>
+<div class="auth-wrap" id="authWrap">
+  <div class="auth-tabs">
+    <button class="auth-tab active" data-authtab="login">Sign in</button>
+    <button class="auth-tab" data-authtab="register">Register</button>
   </div>
-  <button class="btn" id="firstTeamBtn">Create team</button>
+
+  <div class="card" id="loginCard">
+    <h3>Sign in</h3>
+    <div class="field"><label>Email</label><input type="email" id="loginEmail"/></div>
+    <div class="field"><label>Password</label><input type="password" id="loginPassword"/></div>
+    <button class="btn" id="loginBtn" style="width:100%">Sign in</button>
+    <div class="error" id="loginError"></div>
+  </div>
+
+  <div class="card" id="registerCard" style="display:none">
+    <h3>Create an account</h3>
+    <div class="field"><label>Email</label><input type="email" id="registerEmail"/></div>
+    <div class="field"><label>Password (8+ characters)</label><input type="password" id="registerPassword"/></div>
+    <div class="field">
+      <label>Team</label>
+      <select id="registerTeamSelect">
+        <option value="__new__">+ Create a new team</option>
+      </select>
+    </div>
+    <div class="field" id="registerNewTeamField"><label>New team name</label><input type="text" id="registerNewTeamName" placeholder="e.g. Saturday Squad"/></div>
+    <button class="btn" id="registerBtn" style="width:100%">Create account</button>
+    <div class="note">The very first account created on this app becomes an admin automatically.</div>
+    <div class="error" id="registerError"></div>
+  </div>
 </div>
 
 <div id="appShell" style="display:none">
-<div class="tabs">
+<div class="tabs" id="tabsBar">
   <button class="tab active" data-tab="new">New Round</button>
   <button class="tab" data-tab="board">Leaderboard</button>
   <button class="tab" data-tab="trends">Trends</button>
@@ -179,30 +182,53 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
         <button class="btn ghost small" id="addRowBtn">+ Add shooter</button>
         <button class="btn" id="saveWeekBtn">Save this round</button>
       </div>
-      <div class="note">Stations are out of 5 birds each (25 total) for a standard singles round. Leave stations blank and just fill Total if your sheet is different. Saved rounds go into this team's shared history — visible to anyone using this app with the same team selected.</div>
+      <div class="note">Stations are out of 5 birds each (25 total) for a standard singles round. Leave stations blank and just fill Total if your sheet is different.</div>
       <div class="toast" id="saveToast">Saved.</div>
     </div>
   </section>
 
   <section class="panel" id="panel-board">
-    <div class="card">
-      <h3>Team Leaderboard</h3>
-      <div id="leaderboardBody"></div>
-    </div>
+    <div class="card"><h3>Team Leaderboard</h3><div id="leaderboardBody"></div></div>
   </section>
 
   <section class="panel" id="panel-trends">
-    <div class="card">
-      <h3>Score Trends</h3>
-      <div class="legend" id="trendLegend"></div>
-      <div id="trendChart"></div>
-    </div>
+    <div class="card"><h3>Score Trends</h3><div class="legend" id="trendLegend"></div><div id="trendChart"></div></div>
   </section>
 
   <section class="panel" id="panel-history">
+    <div class="card"><h3>Past Rounds</h3><div id="historyBody"></div></div>
+  </section>
+
+  <section class="panel" id="panel-admin">
     <div class="card">
-      <h3>Past Rounds</h3>
-      <div id="historyBody"></div>
+      <h3>App settings</h3>
+      <div class="field">
+        <label>Anthropic API key <span id="apiKeyStatus" class="badge"></span></label>
+        <input type="password" id="settingApiKey" placeholder="Enter a new key to change it"/>
+      </div>
+      <div class="field">
+        <label>CORS origin</label>
+        <input type="text" id="settingCorsOrigin" placeholder="* or https://scores.yourclub.com"/>
+      </div>
+      <div class="field checkbox">
+        <input type="checkbox" id="settingAllowRegistration"/>
+        <label style="margin:0">Allow new people to register</label>
+      </div>
+      <button class="btn" id="saveSettingsBtn">Save settings</button>
+      <div class="toast" id="settingsToast">Saved.</div>
+      <div class="error" id="settingsError"></div>
+    </div>
+    <div class="card">
+      <h3>New team</h3>
+      <div class="field"><input type="text" id="adminNewTeamName" placeholder="Team name"/></div>
+      <button class="btn ghost small" id="adminCreateTeamBtn">Create team</button>
+    </div>
+    <div class="card admin-users-table">
+      <h3>Users</h3>
+      <table class="tbl">
+        <thead><tr><th>Email</th><th>Team</th><th>Admin</th><th>Joined</th><th></th></tr></thead>
+        <tbody id="adminUsersBody"></tbody>
+      </table>
     </div>
   </section>
 
@@ -212,11 +238,99 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
 <script>
 (function(){
   const COLORS = ['#ff6a2b','#c9a24b','#8ab06a','#6a9ac9','#c96ab0','#c65c4a','#6ac9b0'];
-  const state = { weeks: [], activeTab: 'new', imageBase64: null, draftShooters: [], trendSelected: new Set(), teams: [], teamId: null };
+  const state = { weeks: [], activeTab: 'new', imageBase64: null, draftShooters: [], trendSelected: new Set(), user: null, teams: [] };
   const $ = sel => document.querySelector(sel);
-  const TEAM_STORAGE_KEY = 'tsc_team_id';
 
-  document.querySelectorAll('.tab').forEach(btn=>{
+  async function api(path, opts){
+    const res = await fetch('/api'+path, Object.assign({headers:{'Content-Type':'application/json'}}, opts||{}));
+    if(!res.ok){
+      let msg = 'Request failed';
+      try{ msg = (await res.json()).error || msg; }catch(e){}
+      const err = new Error(msg); err.status = res.status; throw err;
+    }
+    if(res.status===204) return null;
+    return res.json();
+  }
+
+  // ---------- Auth tabs ----------
+  document.querySelectorAll('.auth-tab').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('.auth-tab').forEach(b=>b.classList.toggle('active', b===btn));
+      $('#loginCard').style.display = btn.dataset.authtab==='login' ? 'block':'none';
+      $('#registerCard').style.display = btn.dataset.authtab==='register' ? 'block':'none';
+    });
+  });
+
+  async function loadTeamsForRegister(){
+    try{
+      state.teams = await api('/teams');
+    }catch(e){ state.teams = []; }
+    const sel = $('#registerTeamSelect');
+    sel.innerHTML = state.teams.map(t=>`<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('') + '<option value="__new__">+ Create a new team</option>';
+    if(state.teams.length===0) sel.value = '__new__';
+    toggleNewTeamField();
+  }
+  function toggleNewTeamField(){
+    $('#registerNewTeamField').style.display = $('#registerTeamSelect').value==='__new__' ? 'block' : 'none';
+  }
+  $('#registerTeamSelect').addEventListener('change', toggleNewTeamField);
+
+  $('#loginBtn').addEventListener('click', async ()=>{
+    $('#loginError').style.display='none';
+    const email = $('#loginEmail').value.trim();
+    const password = $('#loginPassword').value;
+    if(!email || !password){ showAuthError('#loginError','Enter your email and password.'); return; }
+    try{
+      const user = await api('/auth/login', {method:'POST', body: JSON.stringify({email, password})});
+      onSignedIn(user);
+    }catch(e){ showAuthError('#loginError', e.message); }
+  });
+
+  $('#registerBtn').addEventListener('click', async ()=>{
+    $('#registerError').style.display='none';
+    const email = $('#registerEmail').value.trim();
+    const password = $('#registerPassword').value;
+    const teamSel = $('#registerTeamSelect').value;
+    const body = {email, password};
+    if(teamSel==='__new__') body.newTeamName = $('#registerNewTeamName').value.trim();
+    else body.teamId = Number(teamSel);
+    try{
+      const user = await api('/auth/register', {method:'POST', body: JSON.stringify(body)});
+      onSignedIn(user);
+    }catch(e){ showAuthError('#registerError', e.message); }
+  });
+
+  function showAuthError(sel, msg){ const el = $(sel); el.textContent = msg; el.style.display='block'; }
+
+  function onSignedIn(user){
+    state.user = user;
+    $('#authWrap').style.display='none';
+    renderSessionBar();
+    renderAdminTabVisibility();
+    $('#appShell').style.display='block';
+    startApp();
+  }
+
+  function renderSessionBar(){
+    const bar = $('#sessionBar');
+    bar.style.display='flex';
+    bar.innerHTML = `<span><b>${escapeHtml(state.user.email)}</b> · Team: <b>${escapeHtml(state.user.teamName||'—')}</b>${state.user.isAdmin?' · <span class="badge">ADMIN</span>':''}</span><button class="btn ghost small" id="logoutBtn">Sign out</button>`;
+    $('#logoutBtn').addEventListener('click', async ()=>{
+      await api('/auth/logout', {method:'POST'});
+      location.reload();
+    });
+  }
+
+  function renderAdminTabVisibility(){
+    if(!state.user.isAdmin) return;
+    if(document.querySelector('.tab[data-tab="admin"]')) return;
+    const btn = document.createElement('button');
+    btn.className = 'tab'; btn.dataset.tab = 'admin'; btn.textContent = 'Admin';
+    $('#tabsBar').appendChild(btn);
+    bindTabButton(btn);
+  }
+
+  function bindTabButton(btn){
     btn.addEventListener('click', ()=>{
       state.activeTab = btn.dataset.tab;
       document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active', b===btn));
@@ -224,96 +338,19 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
       if(btn.dataset.tab==='board') renderLeaderboard();
       if(btn.dataset.tab==='trends') renderTrends();
       if(btn.dataset.tab==='history') renderHistory();
+      if(btn.dataset.tab==='admin') loadAdminPanel();
     });
-  });
-
-  async function api(path, opts){
-    const res = await fetch('/api'+path, Object.assign({headers:{'Content-Type':'application/json'}}, opts||{}));
-    if(!res.ok){
-      let msg = 'Request failed';
-      try{ msg = (await res.json()).error || msg; }catch(e){}
-      throw new Error(msg);
-    }
-    if(res.status===204) return null;
-    return res.json();
   }
-
-  async function initTeams(){
-    try{
-      state.teams = await api('/teams');
-    }catch(e){
-      console.error('Could not load teams', e);
-      state.teams = [];
-    }
-
-    if(state.teams.length===0){
-      $('#noTeamCard').style.display='block';
-      $('#firstTeamBtn').addEventListener('click', async ()=>{
-        const name = $('#firstTeamName').value.trim();
-        if(!name){ alert('Enter a team name first.'); return; }
-        try{
-          const team = await api('/teams', {method:'POST', body: JSON.stringify({name})});
-          state.teams = [team];
-          selectTeam(team.id);
-          $('#noTeamCard').style.display='none';
-          startApp();
-        }catch(e){ alert('Could not create team: '+e.message); }
-      });
-      return;
-    }
-
-    const saved = Number(localStorage.getItem(TEAM_STORAGE_KEY));
-    const savedValid = state.teams.some(t=>t.id===saved);
-    selectTeam(savedValid ? saved : state.teams[0].id);
-    startApp();
-  }
-
-  function selectTeam(id){
-    state.teamId = id;
-    localStorage.setItem(TEAM_STORAGE_KEY, String(id));
-    renderTeamSelector();
-  }
-
-  function renderTeamSelector(){
-    const bar = $('#teamBar');
-    const select = $('#teamSelect');
-    if(state.teams.length===0){ bar.style.display='none'; return; }
-    bar.style.display='flex';
-    select.innerHTML = state.teams.map(t=>`<option value="${t.id}" ${t.id===state.teamId?'selected':''}>${escapeHtml(t.name)}</option>`).join('');
-  }
-
-  $('#teamSelect').addEventListener('change', async (e)=>{
-    selectTeam(Number(e.target.value));
-    state.trendSelected = new Set();
-    await loadWeeks();
-    if(state.activeTab==='board') renderLeaderboard();
-    if(state.activeTab==='trends') renderTrends();
-    if(state.activeTab==='history') renderHistory();
-  });
-
-  $('#newTeamBtn').addEventListener('click', async ()=>{
-    const name = prompt('New team name:');
-    if(!name || !name.trim()) return;
-    try{
-      const team = await api('/teams', {method:'POST', body: JSON.stringify({name: name.trim()})});
-      if(!state.teams.some(t=>t.id===team.id)) state.teams.push(team);
-      selectTeam(team.id);
-      state.trendSelected = new Set();
-      await loadWeeks();
-      renderLeaderboard(); renderTrends(); renderHistory();
-    }catch(e){ alert('Could not create team: '+e.message); }
-  });
+  document.querySelectorAll('.tab').forEach(bindTabButton);
 
   async function startApp(){
-    $('#appShell').style.display='block';
     await loadWeeks();
     $('#draftDate').value = todayISO();
   }
 
   async function loadWeeks(){
-    if(!state.teamId) return;
     try{
-      const rounds = await api('/rounds?teamId='+state.teamId);
+      const rounds = await api('/rounds');
       state.weeks = rounds.map(r=>({key:r.id, date:r.date, shooters:r.shooters}));
       state.weeks.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
     }catch(e){ console.error('Could not load rounds', e); }
@@ -321,7 +358,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
   }
 
   async function saveWeekToApi(entry){
-    const result = await api('/rounds', {method:'POST', body: JSON.stringify(Object.assign({teamId: state.teamId}, entry))});
+    const result = await api('/rounds', {method:'POST', body: JSON.stringify(entry)});
     state.weeks.push({key:result.id, date:entry.date, shooters:entry.shooters});
     state.weeks.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
   }
@@ -601,10 +638,84 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     el.innerHTML = `<svg viewBox="0 0 300 150" style="width:100%;height:auto">${dots}</svg>`;
   }
 
+  // ---------- Admin panel ----------
+  async function loadAdminPanel(){
+    try{
+      const settings = await api('/admin/settings');
+      $('#apiKeyStatus').textContent = settings.anthropic_api_key_set ? 'set' : 'not set';
+      $('#settingApiKey').value = '';
+      $('#settingCorsOrigin').value = settings.cors_origin;
+      $('#settingAllowRegistration').checked = settings.allow_registration !== 'false';
+    }catch(e){ console.error(e); }
+
+    try{
+      const users = await api('/admin/users');
+      const teams = await api('/teams');
+      $('#adminUsersBody').innerHTML = users.map(u=>`
+        <tr>
+          <td>${escapeHtml(u.email)}</td>
+          <td><select onchange="window.__tscSetUserTeam(${u.id}, this.value)">${teams.map(t=>`<option value="${t.id}" ${t.id===u.team_id?'selected':''}>${escapeHtml(t.name)}</option>`).join('')}</select></td>
+          <td><input type="checkbox" ${u.is_admin?'checked':''} onchange="window.__tscSetUserAdmin(${u.id}, this.checked)"/></td>
+          <td class="mono" style="font-size:11px">${new Date(u.created_at).toLocaleDateString()}</td>
+          <td><button class="rm" onclick="window.__tscRemoveUser(${u.id})">✕</button></td>
+        </tr>`).join('');
+    }catch(e){ console.error(e); }
+  }
+
+  window.__tscSetUserTeam = async function(id, teamId){
+    try{ await api('/admin/users/'+id, {method:'PUT', body: JSON.stringify({teamId: Number(teamId)})}); }
+    catch(e){ alert('Could not update: '+e.message); }
+  };
+  window.__tscSetUserAdmin = async function(id, isAdmin){
+    try{ await api('/admin/users/'+id, {method:'PUT', body: JSON.stringify({isAdmin})}); }
+    catch(e){ alert('Could not update: '+e.message); }
+  };
+  window.__tscRemoveUser = async function(id){
+    if(!confirm('Remove this user? They will no longer be able to sign in.')) return;
+    try{ await api('/admin/users/'+id, {method:'DELETE'}); loadAdminPanel(); }
+    catch(e){ alert('Could not remove: '+e.message); }
+  };
+
+  $('#saveSettingsBtn').addEventListener('click', async ()=>{
+    $('#settingsError').style.display='none';
+    const body = {
+      cors_origin: $('#settingCorsOrigin').value,
+      allow_registration: $('#settingAllowRegistration').checked
+    };
+    const key = $('#settingApiKey').value.trim();
+    if(key) body.anthropic_api_key = key;
+    try{
+      await api('/admin/settings', {method:'PUT', body: JSON.stringify(body)});
+      const toast = $('#settingsToast');
+      toast.style.display='block';
+      setTimeout(()=>toast.style.display='none', 2000);
+      loadAdminPanel();
+    }catch(e){ showAuthError('#settingsError', e.message); }
+  });
+
+  $('#adminCreateTeamBtn').addEventListener('click', async ()=>{
+    const name = $('#adminNewTeamName').value.trim();
+    if(!name) return;
+    try{
+      await api('/admin/teams', {method:'POST', body: JSON.stringify({name})});
+      $('#adminNewTeamName').value='';
+      loadAdminPanel();
+    }catch(e){ alert('Could not create team: '+e.message); }
+  });
+
   function escapeHtml(str){ return String(str==null?'':str).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
   function escapeAttr(str){ return escapeHtml(str); }
 
-  initTeams();
+  // ---------- Boot ----------
+  (async function init(){
+    loadTeamsForRegister();
+    try{
+      const user = await api('/auth/me');
+      onSignedIn(user);
+    }catch(e){
+      $('#authWrap').style.display='block';
+    }
+  })();
 })();
 </script>
 </body>

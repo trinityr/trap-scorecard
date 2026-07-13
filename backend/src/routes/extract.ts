@@ -1,6 +1,9 @@
 import { Router, Request, Response } from "express";
+import { requireAuth } from "../auth";
+import { getSetting } from "../settings";
 
 const router = Router();
+router.use(requireAuth);
 
 const EXTRACT_PROMPT = `You are reading a handwritten trap shooting scoresheet photographed by a phone camera. Each row is one shooter. Typically there are 5 stations (columns), each scored out of 5 (hits out of 5 clay targets), plus a total out of 25. Column headers might read 1-5 or STA 1-STA 5, plus TOTAL or TOT. Read the handwriting carefully, including any cross-outs or corrections, using the corrected value. If a value is illegible or missing, use null rather than guessing. If you can find a date on the sheet, include it as YYYY-MM-DD, otherwise use null. Respond with ONLY raw JSON, no markdown fences, no explanation, matching exactly this schema: {"date": "YYYY-MM-DD or null", "shooters": [{"name": "string", "stations": [n,n,n,n,n] each 0-5 or null per entry if unreadable, "total": number or null}]}`;
 
@@ -10,9 +13,9 @@ router.post("/", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "Missing image (base64, no data: prefix)." });
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = await getSetting("anthropic_api_key", process.env.ANTHROPIC_API_KEY);
   if (!apiKey) {
-    return res.status(500).json({ error: "Server is missing ANTHROPIC_API_KEY — set it in .env." });
+    return res.status(500).json({ error: "No Anthropic API key configured. An admin needs to set one in the Admin panel." });
   }
 
   try {

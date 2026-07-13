@@ -1,14 +1,14 @@
 import { Router, Request, Response } from "express";
 import { pool } from "../db";
+import { requireAuth } from "../auth";
 
 const router = Router();
+router.use(requireAuth);
 
-// GET /api/stats/leaderboard?teamId=1
+// GET /api/stats/leaderboard
 router.get("/leaderboard", async (req: Request, res: Response) => {
-  const teamId = Number(req.query.teamId);
-  if (!teamId) {
-    return res.status(400).json({ error: "teamId query parameter is required." });
-  }
+  const teamId = req.session.user!.teamId;
+  if (!teamId) return res.json([]);
   try {
     const result = await pool.query(
       `
@@ -38,12 +38,10 @@ router.get("/leaderboard", async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/stats/trends?teamId=1 - per-shooter score history over time
+// GET /api/stats/trends - per-shooter score history over time
 router.get("/trends", async (req: Request, res: Response) => {
-  const teamId = Number(req.query.teamId);
-  if (!teamId) {
-    return res.status(400).json({ error: "teamId query parameter is required." });
-  }
+  const teamId = req.session.user!.teamId;
+  if (!teamId) return res.json([]);
   try {
     const result = await pool.query(
       `

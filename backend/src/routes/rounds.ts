@@ -1,8 +1,10 @@
 import { Router, Request, Response } from "express";
 import { pool } from "../db";
-import { RoundInput } from "../types";
+import { requireAuth } from "../auth";
+import { ShooterScore } from "../types";
 
 const router = Router();
+router.use(requireAuth);
 
 function autoTotal(stations: (number | null)[] | undefined): number | null {
   if (!stations) return null;
@@ -11,12 +13,16 @@ function autoTotal(stations: (number | null)[] | undefined): number | null {
   return nums.reduce((a, b) => a + b, 0);
 }
 
-// POST /api/rounds - save a week's scoresheet for a team
+// POST /api/rounds - save a week's scoresheet for the signed-in user's team
 router.post("/", async (req: Request, res: Response) => {
-  const body = req.body as RoundInput;
+  const teamId = req.session.user!.teamId;
+  const body = req.body as { date?: string; shooters?: ShooterScore[] };
 
-  if (!body?.teamId || !body?.date || !Array.isArray(body.shooters) || body.shooters.length === 0) {
-    return res.status(400).json({ error: "Request needs a teamId, a date, and at least one shooter." });
+  if (!teamId) {
+    return res.status(400).json({ error: "Your account isn't attached to a team." });
+  }
+  if (!body?.date || !Array.isArray(body.shooters) || body.shooters.length === 0) {
+    return res.status(400).json({ error: "Request needs a date and at least one shooter." });
   }
 
   const client = await pool.connect();
@@ -25,7 +31,7 @@ router.post("/", async (req: Request, res: Response) => {
 
     const roundResult = await client.query(
       "INSERT INTO rounds (team_id, round_date) VALUES ($1, $2) RETURNING id",
-      [body.teamId, body.date]
+      [teamId, body.date]
     );
     const roundId = roundResult.rows[0].id;
 
@@ -40,7 +46,7 @@ router.post("/", async (req: Request, res: Response) => {
         `INSERT INTO shooters (team_id, name) VALUES ($1, $2)
          ON CONFLICT (team_id, name) DO UPDATE SET name = EXCLUDED.name
          RETURNING id`,
-        [body.teamId, name]
+        [teamId, name]
       );
       const shooterId = shooterResult.rows[0].id;
 
@@ -63,12 +69,11 @@ router.post("/", async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/rounds?teamId=1 - list every saved round with scores, for one team
+// GET /api/rounds - every saved round with scores, for the signed-in user's team
 router.get("/", async (req: Request, res: Response) => {
-  const teamId = Number(req.query.teamId);
-  if (!teamId) {
-    return res.status(400).json({ error: "teamId query parameter is required." });
-  }
+  const teamId = req.session.user!.teamId;
+  if (!teamId) return res.json([]);
+
   try {
     const rounds = await pool.query(
       "SELECT id, round_date FROM rounds WHERE team_id = $1 ORDER BY round_date DESC",
@@ -107,10 +112,11 @@ router.get("/", async (req: Request, res: Response) => {
   }
 });
 
-// DELETE /api/rounds/:id
+// DELETE /api/rounds/:id - scoped to the signed-in user's own team
 router.delete("/:id", async (req: Request, res: Response) => {
+  const teamId = req.session.user!.teamId;
   try {
-    await pool.query("DELETE FROM rounds WHERE id = $1", [req.params.id]);
+    await pool.query("DELETE FROM rounds WHERE id = $1 AND team_id = $2", [req.params.id, teamId]);
     res.status(204).send();
   } catch (err) {
     console.error(err);

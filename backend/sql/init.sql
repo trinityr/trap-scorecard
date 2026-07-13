@@ -3,6 +3,23 @@ CREATE TABLE IF NOT EXISTS teams (
   name TEXT UNIQUE NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS users (
+  id SERIAL PRIMARY KEY,
+  email TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  is_admin BOOLEAN NOT NULL DEFAULT false,
+  team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS app_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT
+);
+-- Note: the session store table is created automatically by
+-- connect-pg-simple on first run (createTableIfMissing: true) — no need
+-- to define it here.
+
 CREATE TABLE IF NOT EXISTS shooters (
   id SERIAL PRIMARY KEY,
   team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
@@ -31,6 +48,7 @@ CREATE TABLE IF NOT EXISTS scores (
 
 CREATE INDEX IF NOT EXISTS idx_shooters_team ON shooters(team_id);
 CREATE INDEX IF NOT EXISTS idx_rounds_team ON rounds(team_id);
+CREATE INDEX IF NOT EXISTS idx_users_team ON users(team_id);
 CREATE INDEX IF NOT EXISTS idx_scores_round ON scores(round_id);
 CREATE INDEX IF NOT EXISTS idx_scores_shooter ON scores(shooter_id);
 CREATE INDEX IF NOT EXISTS idx_rounds_date ON rounds(round_date);
