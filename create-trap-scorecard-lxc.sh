@@ -54,6 +54,8 @@ POSTGRES_DB="${POSTGRES_DB:-trapscores}"
 POSTGRES_USER="${POSTGRES_USER:-trapadmin}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-}"   # blank = auto-generate
 CORS_ORIGIN="${CORS_ORIGIN:-*}"              # set to your real frontend origin once you have one
+ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}"    # optional — can also be set later from the app's Admin panel
+SESSION_SECRET="${SESSION_SECRET:-}"          # blank = auto-generate
 API_HOST_PORT="${API_HOST_PORT:-3000}"       # published port on this VM — change if 3000 is already taken
 AUTO_LOGIN_CONSOLE="${AUTO_LOGIN_CONSOLE:-0}" # 1 = passwordless root login on `pct console`
 NONINTERACTIVE="${NONINTERACTIVE:-0}"         # 1 = skip the wizard, use defaults/env vars as-is
@@ -115,6 +117,7 @@ run_wizard() {
   prompt POSTGRES_PASSWORD "Postgres password (blank = auto-generate)" "${POSTGRES_PASSWORD:-auto-generate}"
   [ "$POSTGRES_PASSWORD" = "auto-generate" ] && POSTGRES_PASSWORD=""
   prompt CORS_ORIGIN "CORS origin (* is fine for now, or your real domain)" "$CORS_ORIGIN"
+  prompt ANTHROPIC_API_KEY "Anthropic API key (blank = set it later in the Admin panel)" "$ANTHROPIC_API_KEY"
 
   if confirm "Enable passwordless root auto-login on the console (pct console)? Security trade-off — see notes." n; then
     AUTO_LOGIN_CONSOLE=1
@@ -129,6 +132,7 @@ run_wizard() {
   echo " Source:          ${REPO_URL:-$ZIP_PATH}"
   echo " Postgres:        db=${POSTGRES_DB} user=${POSTGRES_USER} password=${POSTGRES_PASSWORD:-<auto-generate>}"
   echo " CORS origin:     $CORS_ORIGIN"
+  echo " Anthropic API key: $([ -n "$ANTHROPIC_API_KEY" ] && echo "set (hidden)" || echo "not set — add it later from the app's Admin panel")"
   echo " Console auto-login: $([ "$AUTO_LOGIN_CONSOLE" = "1" ] && echo enabled || echo disabled)"
   echo
   confirm "Proceed with these settings?" y || fail "Cancelled."
@@ -153,6 +157,14 @@ if [ -z "$POSTGRES_PASSWORD" ]; then
   POSTGRES_PASSWORD="$(openssl rand -base64 24)"
 fi
 
+if [ -z "$SESSION_SECRET" ]; then
+  SESSION_SECRET="$(openssl rand -base64 32)"
+fi
+
+if [ -z "$ANTHROPIC_API_KEY" ]; then
+  log "No ANTHROPIC_API_KEY provided — that's fine, photo reading just won't work until an admin sets one from the app's Admin panel after the first account registers."
+fi
+
 if [ -z "$CTID" ]; then
   CTID="$(pvesh get /cluster/nextid)"
 fi
@@ -170,6 +182,7 @@ Container ID:      $CTID
 Container hostname: $CT_HOSTNAME
 Root password:      $CT_PASSWORD
 Postgres password:  $POSTGRES_PASSWORD
+Anthropic API key set: $([ -n "$ANTHROPIC_API_KEY" ] && echo yes || echo no)
 Generated:           $(date)
 EOF
 chmod 600 "$CRED_FILE"
@@ -260,6 +273,8 @@ pct exec "$CTID" -- bash -c "
   sed -i 's|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=${POSTGRES_PASSWORD}|' .env
   sed -i 's|^API_HOST_IP=.*|API_HOST_IP=${IP}|' .env
   sed -i 's|^CORS_ORIGIN=.*|CORS_ORIGIN=${CORS_ORIGIN}|' .env
+  sed -i 's|^ANTHROPIC_API_KEY=.*|ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}|' .env
+  sed -i 's|^SESSION_SECRET=.*|SESSION_SECRET=${SESSION_SECRET}|' .env
 "
 pct exec "$CTID" -- bash -c "test -s /root/trap-scorecard/.env" \
   || fail ".env was not created successfully in /root/trap-scorecard. Check with: pct exec $CTID -- cat /root/trap-scorecard/.env"

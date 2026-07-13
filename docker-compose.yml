@@ -25,7 +25,7 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-trapadmin}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-trapscores}
       PORT: 3000
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?set ANTHROPIC_API_KEY in .env}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
     depends_on:
