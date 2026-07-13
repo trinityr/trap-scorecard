@@ -55,6 +55,15 @@ POSTGRES_USER="${POSTGRES_USER:-trapadmin}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-}"   # blank = auto-generate
 CORS_ORIGIN="${CORS_ORIGIN:-*}"              # set to your real frontend origin once you have one
 ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}"    # optional — can also be set later from the app's Admin panel
+
+# The app normally lets the first person to register become an admin
+# automatically. This script instead pre-seeds a known admin account for
+# you, so you're never dependent on the self-registration flow working to
+# get your first login. Leave ADMIN_EMAIL blank to skip this and fall
+# back to the old "first to register wins" behavior instead.
+ADMIN_EMAIL="${ADMIN_EMAIL:-}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"          # blank = auto-generate a random 15-character password
+ADMIN_TEAM_NAME="${ADMIN_TEAM_NAME:-Default Team}"
 SESSION_SECRET="${SESSION_SECRET:-}"          # blank = auto-generate
 API_HOST_PORT="${API_HOST_PORT:-3000}"       # published port on this VM — change if 3000 is already taken
 AUTO_LOGIN_CONSOLE="${AUTO_LOGIN_CONSOLE:-0}" # 1 = passwordless root login on `pct console`
@@ -119,6 +128,15 @@ run_wizard() {
   prompt CORS_ORIGIN "CORS origin (* is fine for now, or your real domain)" "$CORS_ORIGIN"
   prompt ANTHROPIC_API_KEY "Anthropic API key (blank = set it later in the Admin panel)" "$ANTHROPIC_API_KEY"
 
+  if confirm "Pre-seed a known admin account? (recommended — otherwise the first person to register becomes admin)" y; then
+    prompt ADMIN_EMAIL "Admin email" "${ADMIN_EMAIL:-admin@${CT_HOSTNAME}.local}"
+    prompt ADMIN_PASSWORD "Admin password (blank = auto-generate 15 characters)" "${ADMIN_PASSWORD:-auto-generate}"
+    [ "$ADMIN_PASSWORD" = "auto-generate" ] && ADMIN_PASSWORD=""
+    prompt ADMIN_TEAM_NAME "Admin's team name" "$ADMIN_TEAM_NAME"
+  else
+    ADMIN_EMAIL=""
+  fi
+
   if confirm "Enable passwordless root auto-login on the console (pct console)? Security trade-off — see notes." n; then
     AUTO_LOGIN_CONSOLE=1
   fi
@@ -133,6 +151,7 @@ run_wizard() {
   echo " Postgres:        db=${POSTGRES_DB} user=${POSTGRES_USER} password=${POSTGRES_PASSWORD:-<auto-generate>}"
   echo " CORS origin:     $CORS_ORIGIN"
   echo " Anthropic API key: $([ -n "$ANTHROPIC_API_KEY" ] && echo "set (hidden)" || echo "not set — add it later from the app's Admin panel")"
+  echo " Admin account:   $([ -n "$ADMIN_EMAIL" ] && echo "$ADMIN_EMAIL (team: $ADMIN_TEAM_NAME)" || echo "none — first person to register becomes admin")"
   echo " Console auto-login: $([ "$AUTO_LOGIN_CONSOLE" = "1" ] && echo enabled || echo disabled)"
   echo
   confirm "Proceed with these settings?" y || fail "Cancelled."
@@ -165,6 +184,10 @@ if [ -z "$ANTHROPIC_API_KEY" ]; then
   log "No ANTHROPIC_API_KEY provided — that's fine, photo reading just won't work until an admin sets one from the app's Admin panel after the first account registers."
 fi
 
+if [ -n "$ADMIN_EMAIL" ] && [ -z "$ADMIN_PASSWORD" ]; then
+  ADMIN_PASSWORD="$(tr -dc 'A-Za-z0-9' < /dev/urandom | head -c15)"
+fi
+
 if [ -z "$CTID" ]; then
   CTID="$(pvesh get /cluster/nextid)"
 fi
@@ -183,6 +206,9 @@ Container hostname: $CT_HOSTNAME
 Root password:      $CT_PASSWORD
 Postgres password:  $POSTGRES_PASSWORD
 Anthropic API key set: $([ -n "$ANTHROPIC_API_KEY" ] && echo yes || echo no)
+$([ -n "$ADMIN_EMAIL" ] && echo "Admin email:         $ADMIN_EMAIL
+Admin password:      $ADMIN_PASSWORD
+Admin team:          $ADMIN_TEAM_NAME")
 Generated:           $(date)
 EOF
 chmod 600 "$CRED_FILE"
@@ -307,11 +333,22 @@ for i in $(seq 1 20); do
   sleep 3
 done
 
+if [ -n "$ADMIN_EMAIL" ] && [ "${HEALTHY:-0}" = "1" ]; then
+  log "Creating admin account ($ADMIN_EMAIL)"
+  pct exec "$CTID" -- bash -c "cd /root/trap-scorecard && docker compose exec -T api node dist/create-admin.js '$ADMIN_EMAIL' '$ADMIN_PASSWORD' '$ADMIN_TEAM_NAME'" \
+    || log "Admin creation failed — check with: pct exec $CTID -- bash -c 'cd /root/trap-scorecard && docker compose logs api'. You can still register manually at the app's sign-in page."
+fi
+
 echo
 echo "=================================================================="
 echo " Container:        CT $CTID ($CT_HOSTNAME) at $IP"
 echo " Root password:     $CT_PASSWORD"
 echo " Postgres password: $POSTGRES_PASSWORD"
+if [ -n "$ADMIN_EMAIL" ]; then
+echo " Admin login:       $ADMIN_EMAIL / $ADMIN_PASSWORD (team: $ADMIN_TEAM_NAME)"
+else
+echo " Admin account:     none pre-seeded — the first person to register at the app becomes admin"
+fi
 echo " (also saved in $CRED_FILE on this Proxmox host, and in /root/.env inside the container)"
 if [ "$AUTO_LOGIN_CONSOLE" = "1" ]; then
   echo " Console auto-login: ENABLED — 'pct console $CTID' drops into root with no password."

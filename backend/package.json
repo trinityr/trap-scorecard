@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "create-admin": "node dist/create-admin.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

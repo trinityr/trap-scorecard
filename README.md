@@ -75,9 +75,30 @@ specifically — no need to open it to the whole LAN, let alone the internet.
 
 Everyone needs an account to use the app now — no more anonymous shared
 access. Registration asks for an email, password, and a team (join an
-existing one or create a new one). **The very first account created on a
-fresh deployment becomes an admin automatically** — no separate bootstrap
-step.
+existing one or create a new one).
+
+**Recommended: pre-seed an admin account via the LXC script** rather than
+relying on self-registration for your first login. When you run
+`create-trap-scorecard-lxc.sh`, it'll offer to create a known admin
+account (email + a random 15-character password, both saved in the
+credentials file and printed at the end) right after the containers come
+up — independent of whether anyone ever uses the registration form. This
+avoids being blocked if registration has an issue, and avoids the (small,
+but real) risk of someone else beating you to the signup page and
+becoming admin first if the app is reachable before you get to it.
+
+If you skip that, the app falls back to its original behavior: **the
+first account anyone creates via self-registration becomes admin
+automatically.**
+
+To pre-seed an admin account manually against an already-running
+deployment (or to add a second admin later), the same script the LXC
+tool uses is available directly:
+```bash
+docker compose exec -T api node dist/create-admin.js "you@yourclub.com" "a-real-password" "Your Team Name"
+```
+It's idempotent — running it again with the same email does nothing if
+that account already exists.
 
 Admins get an **Admin** tab in the app with:
 - **App settings** — set/replace the Anthropic API key, restrict CORS to

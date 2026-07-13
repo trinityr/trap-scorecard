@@ -75,6 +75,18 @@ app.use("/api/site", siteRouter);
 // take priority.
 app.use(express.static(path.join(__dirname, "..", "public")));
 
+// Catch-all error handler. Without this, an unhandled error anywhere
+// (a malformed JSON body, an unexpected exception, etc.) falls through to
+// Express's default HTML error page — which breaks every API client that
+// expects JSON back, including the frontend's own fetch wrapper. This
+// guarantees every response is JSON, and logs the real error server-side
+// for debugging (check `docker compose logs api`).
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error("Unhandled error:", err);
+  if (res.headersSent) return;
+  res.status(err?.status || 500).json({ error: "Something went wrong on the server. Check the api container logs for details." });
+});
+
 app.listen(port, () => {
   console.log(`Trap scorecard API + frontend listening on port ${port}`);
 });
