@@ -11,12 +11,12 @@ function autoTotal(stations: (number | null)[] | undefined): number | null {
   return nums.reduce((a, b) => a + b, 0);
 }
 
-// POST /api/rounds - save a week's scoresheet
+// POST /api/rounds - save a week's scoresheet for a team
 router.post("/", async (req: Request, res: Response) => {
   const body = req.body as RoundInput;
 
-  if (!body?.date || !Array.isArray(body.shooters) || body.shooters.length === 0) {
-    return res.status(400).json({ error: "Request needs a date and at least one shooter." });
+  if (!body?.teamId || !body?.date || !Array.isArray(body.shooters) || body.shooters.length === 0) {
+    return res.status(400).json({ error: "Request needs a teamId, a date, and at least one shooter." });
   }
 
   const client = await pool.connect();
@@ -24,8 +24,8 @@ router.post("/", async (req: Request, res: Response) => {
     await client.query("BEGIN");
 
     const roundResult = await client.query(
-      "INSERT INTO rounds (round_date) VALUES ($1) RETURNING id",
-      [body.date]
+      "INSERT INTO rounds (team_id, round_date) VALUES ($1, $2) RETURNING id",
+      [body.teamId, body.date]
     );
     const roundId = roundResult.rows[0].id;
 
@@ -37,10 +37,10 @@ router.post("/", async (req: Request, res: Response) => {
       if (total == null) continue;
 
       const shooterResult = await client.query(
-        `INSERT INTO shooters (name) VALUES ($1)
-         ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+        `INSERT INTO shooters (team_id, name) VALUES ($1, $2)
+         ON CONFLICT (team_id, name) DO UPDATE SET name = EXCLUDED.name
          RETURNING id`,
-        [name]
+        [body.teamId, name]
       );
       const shooterId = shooterResult.rows[0].id;
 
@@ -63,18 +63,26 @@ router.post("/", async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/rounds - list every saved round with scores
-router.get("/", async (_req: Request, res: Response) => {
+// GET /api/rounds?teamId=1 - list every saved round with scores, for one team
+router.get("/", async (req: Request, res: Response) => {
+  const teamId = Number(req.query.teamId);
+  if (!teamId) {
+    return res.status(400).json({ error: "teamId query parameter is required." });
+  }
   try {
     const rounds = await pool.query(
-      "SELECT id, round_date FROM rounds ORDER BY round_date DESC"
+      "SELECT id, round_date FROM rounds WHERE team_id = $1 ORDER BY round_date DESC",
+      [teamId]
     );
 
-    const scores = await pool.query(`
-      SELECT s.round_id, sh.name, s.station_1, s.station_2, s.station_3, s.station_4, s.station_5, s.total
-      FROM scores s
-      JOIN shooters sh ON sh.id = s.shooter_id
-    `);
+    const scores = await pool.query(
+      `SELECT s.round_id, sh.name, s.station_1, s.station_2, s.station_3, s.station_4, s.station_5, s.total
+       FROM scores s
+       JOIN shooters sh ON sh.id = s.shooter_id
+       JOIN rounds r ON r.id = s.round_id
+       WHERE r.team_id = $1`,
+      [teamId]
+    );
 
     const byRound: Record<number, any[]> = {};
     for (const row of scores.rows) {

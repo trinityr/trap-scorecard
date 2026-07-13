@@ -5,6 +5,7 @@ export interface ShooterScore {
 }
 
 export interface RoundInput {
+  teamId: number;
   date: string; // YYYY-MM-DD
   shooters: ShooterScore[];
 }

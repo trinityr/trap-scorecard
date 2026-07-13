@@ -3,10 +3,15 @@ import { pool } from "../db";
 
 const router = Router();
 
-// GET /api/stats/leaderboard
-router.get("/leaderboard", async (_req: Request, res: Response) => {
+// GET /api/stats/leaderboard?teamId=1
+router.get("/leaderboard", async (req: Request, res: Response) => {
+  const teamId = Number(req.query.teamId);
+  if (!teamId) {
+    return res.status(400).json({ error: "teamId query parameter is required." });
+  }
   try {
-    const result = await pool.query(`
+    const result = await pool.query(
+      `
       SELECT
         sh.name,
         COUNT(*)::int AS rounds,
@@ -19,9 +24,13 @@ router.get("/leaderboard", async (_req: Request, res: Response) => {
         ROUND(AVG(s.station_5)::numeric, 2)::float AS avg_station_5
       FROM scores s
       JOIN shooters sh ON sh.id = s.shooter_id
+      JOIN rounds r ON r.id = s.round_id
+      WHERE r.team_id = $1
       GROUP BY sh.name
       ORDER BY avg_total DESC
-    `);
+      `,
+      [teamId]
+    );
     res.json(result.rows);
   } catch (err) {
     console.error(err);
@@ -29,16 +38,24 @@ router.get("/leaderboard", async (_req: Request, res: Response) => {
   }
 });
 
-// GET /api/stats/trends - per-shooter score history over time
-router.get("/trends", async (_req: Request, res: Response) => {
+// GET /api/stats/trends?teamId=1 - per-shooter score history over time
+router.get("/trends", async (req: Request, res: Response) => {
+  const teamId = Number(req.query.teamId);
+  if (!teamId) {
+    return res.status(400).json({ error: "teamId query parameter is required." });
+  }
   try {
-    const result = await pool.query(`
+    const result = await pool.query(
+      `
       SELECT sh.name, r.round_date, s.total
       FROM scores s
       JOIN shooters sh ON sh.id = s.shooter_id
       JOIN rounds r ON r.id = s.round_id
+      WHERE r.team_id = $1
       ORDER BY sh.name, r.round_date ASC
-    `);
+      `,
+      [teamId]
+    );
 
     const byName: Record<string, { date: string; total: number }[]> = {};
     for (const row of result.rows) {
