@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Trap Line Stats</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root{
+  --bg-void:#14140f;
+  --bg-panel:#1d1f18;
+  --bg-panel-raised:#262820;
+  --accent-clay:#ff6a2b;
+  --accent-brass:#c9a24b;
+  --text-primary:#f2efe6;
+  --text-muted:#9c9c8e;
+  --line:#383b30;
+  --good:#8ab06a;
+  --bad:#c65c4a;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;background:var(--bg-void);}
+body{
+  color:var(--text-primary);
+  font-family:'Inter',sans-serif;
+  min-height:100vh;
+}
+.mono{font-family:'IBM Plex Mono',monospace;}
+.hero{
+  padding:36px 28px 20px;
+  background:linear-gradient(180deg,var(--bg-panel-raised) 0%,var(--bg-void) 100%);
+  border-bottom:1px solid var(--line);
+  text-align:center;
+}
+.eyebrow{
+  font-family:'IBM Plex Mono',monospace;letter-spacing:.28em;font-size:11px;color:var(--accent-brass);margin-bottom:8px;
+}
+.hero h1{
+  font-family:'Oswald',sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:.03em;
+  font-size:clamp(28px,5vw,42px);margin:0 0 6px;
+}
+.hero p{color:var(--text-muted);margin:0 0 18px;font-size:14px;}
+.team-bar{display:flex;justify-content:center;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+.team-bar select{
+  background:var(--bg-panel-raised);border:1px solid var(--line);color:var(--text-primary);
+  padding:8px 12px;border-radius:6px;font-family:'Oswald',sans-serif;text-transform:uppercase;
+  letter-spacing:.04em;font-size:12px;cursor:pointer;
+}
+.tabs{
+  display:flex;gap:2px;padding:14px 16px 0;background:var(--bg-void);border-bottom:1px solid var(--line);overflow-x:auto;
+  position:sticky;top:0;z-index:10;
+}
+.tab{
+  background:none;border:none;color:var(--text-muted);font-family:'Oswald',sans-serif;text-transform:uppercase;
+  letter-spacing:.06em;font-size:13px;padding:10px 16px;cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;
+}
+.tab.active{color:var(--text-primary);border-bottom-color:var(--accent-clay);}
+.tab:hover{color:var(--text-primary);}
+main{padding:22px 22px 48px;max-width:900px;margin:0 auto;}
+.panel{display:none;}
+.panel.active{display:block;animation:fade .2s ease;}
+@keyframes fade{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+.card{background:var(--bg-panel);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:16px;}
+.card h3{font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.05em;font-size:15px;margin:0 0 12px;color:var(--accent-brass);}
+.note{font-size:12px;color:var(--text-muted);margin-top:8px;line-height:1.5;}
+.btn{
+  font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.05em;font-size:13px;background:var(--accent-clay);
+  color:#1a0f08;border:none;padding:10px 18px;border-radius:6px;cursor:pointer;font-weight:600;
+}
+.btn:hover{background:#ff8046;}
+.btn:disabled{background:var(--line);color:var(--text-muted);cursor:not-allowed;}
+.btn.ghost{background:none;border:1px solid var(--line);color:var(--text-primary);}
+.btn.ghost:hover{border-color:var(--accent-brass);color:var(--accent-brass);}
+.btn.small{padding:6px 10px;font-size:11px;}
+.btn.danger{background:none;border:1px solid var(--bad);color:var(--bad);}
+.upload{border:2px dashed var(--line);border-radius:10px;padding:26px;text-align:center;cursor:pointer;transition:border-color .15s;display:block;}
+.upload:hover{border-color:var(--accent-clay);}
+.upload input{display:none;}
+.upload .hint{color:var(--text-muted);font-size:13px;margin-top:6px;}
+.preview{max-width:100%;max-height:280px;border-radius:8px;margin-top:12px;display:block;}
+.row-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;}
+.field{margin-bottom:12px;}
+.field label{display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em;}
+.field input[type=date]{background:var(--bg-panel-raised);border:1px solid var(--line);color:var(--text-primary);padding:8px 10px;border-radius:6px;font-family:'IBM Plex Mono',monospace;}
+table.tbl{width:100%;border-collapse:collapse;font-size:13px;}
+table.tbl th{font-family:'Oswald',sans-serif;text-transform:uppercase;font-size:11px;letter-spacing:.05em;color:var(--text-muted);text-align:left;padding:6px 4px;border-bottom:1px solid var(--line);}
+table.tbl td{padding:5px 4px;border-bottom:1px solid var(--line);}
+table.tbl input{width:100%;background:var(--bg-panel-raised);border:1px solid var(--line);color:var(--text-primary);padding:6px 6px;border-radius:5px;font-family:'IBM Plex Mono',monospace;font-size:13px;}
+table.tbl input.name-input{font-family:'Inter',sans-serif;}
+table.tbl .station-cell input{width:44px;text-align:center;}
+table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--accent-clay);text-align:center;}
+.rm{background:none;border:none;color:var(--bad);cursor:pointer;font-size:16px;}
+.field-arc{margin:6px auto 0;max-width:340px;}
+.lb-row{display:flex;align-items:center;gap:14px;padding:12px 4px;border-bottom:1px solid var(--line);}
+.lb-rank{font-family:'Oswald',sans-serif;font-weight:700;font-size:18px;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--bg-panel-raised);border:1px solid var(--accent-brass);color:var(--accent-brass);flex-shrink:0;}
+.lb-row:nth-child(1) .lb-rank{background:var(--accent-clay);border-color:var(--accent-clay);color:#1a0f08;}
+.lb-name{flex:1;font-weight:600;}
+.lb-sub{color:var(--text-muted);font-size:12px;}
+.lb-avg{font-family:'IBM Plex Mono',monospace;font-size:18px;color:var(--accent-clay);width:70px;text-align:right;}
+.legend{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;}
+.chip{display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:20px;border:1px solid var(--line);font-size:12px;cursor:pointer;user-select:none;}
+.chip.active{border-color:var(--dot,var(--accent-clay));background:var(--bg-panel-raised);}
+.chip .dot{width:9px;height:9px;border-radius:50%;background:var(--dot,var(--accent-clay));}
+.history-item{border-bottom:1px solid var(--line);padding:12px 4px;}
+.history-head{display:flex;justify-content:space-between;align-items:center;cursor:pointer;}
+.history-head .d{font-family:'IBM Plex Mono',monospace;color:var(--accent-brass);}
+.history-body{display:none;padding-top:10px;}
+.history-item.open .history-body{display:block;}
+.empty{color:var(--text-muted);text-align:center;padding:30px 10px;font-size:14px;}
+.toast{position:sticky;bottom:10px;background:var(--good);color:#12200c;padding:8px 14px;border-radius:6px;font-size:13px;font-weight:600;text-align:center;margin-top:10px;display:none;}
+.error{background:rgba(198,92,74,.15);border:1px solid var(--bad);color:#f0b3a8;padding:10px 14px;border-radius:6px;font-size:13px;margin-top:10px;display:none;}
+@media(max-width:520px){main{padding:16px 12px;} .lb-avg{width:54px;font-size:15px;}}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="eyebrow">SQUAD SCORECARD</div>
+  <h1>Trap Line Stats</h1>
+  <p>Snap the sheet. Track the squad.</p>
+  <div class="team-bar" id="teamBar" style="display:none">
+    <select id="teamSelect"></select>
+    <button class="btn ghost small" id="newTeamBtn">+ New team</button>
+  </div>
+  <div class="field-arc" id="fieldArc"></div>
+</div>
+
+<div class="card" id="noTeamCard" style="display:none;max-width:420px;margin:20px auto;">
+  <h3>Create your first team</h3>
+  <div class="field">
+    <label>Team name</label>
+    <input type="text" id="firstTeamName" placeholder="e.g. Saturday Squad" style="width:100%;background:var(--bg-panel-raised);border:1px solid var(--line);color:var(--text-primary);padding:8px 10px;border-radius:6px;"/>
+  </div>
+  <button class="btn" id="firstTeamBtn">Create team</button>
+</div>
+
+<div id="appShell" style="display:none">
+<div class="tabs">
+  <button class="tab active" data-tab="new">New Round</button>
+  <button class="tab" data-tab="board">Leaderboard</button>
+  <button class="tab" data-tab="trends">Trends</button>
+  <button class="tab" data-tab="history">History</button>
+</div>
+
+<main>
+
+  <section class="panel active" id="panel-new">
+    <div class="card">
+      <h3>1 — Upload the sheet</h3>
+      <label class="upload" id="uploadZone">
+        <input type="file" accept="image/*" id="fileInput"/>
+        <div id="uploadLabel">Tap to choose a photo of this week's scoresheet</div>
+        <div class="hint">JPG or PNG, handwritten is fine</div>
+        <img id="previewImg" class="preview" style="display:none"/>
+      </label>
+      <div class="row-actions">
+        <button class="btn" id="extractBtn" disabled>Read scoresheet</button>
+        <button class="btn ghost" id="manualBtn">Skip photo — enter manually</button>
+      </div>
+      <div class="error" id="extractError"></div>
+    </div>
+
+    <div class="card" id="draftCard" style="display:none">
+      <h3>2 — Check the numbers</h3>
+      <div class="field">
+        <label>Round date</label>
+        <input type="date" id="draftDate"/>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="tbl" id="draftTable">
+          <thead>
+            <tr><th style="min-width:120px">Shooter</th><th>Sta 1</th><th>Sta 2</th><th>Sta 3</th><th>Sta 4</th><th>Sta 5</th><th>Total</th><th></th></tr>
+          </thead>
+          <tbody id="draftBody"></tbody>
+        </table>
+      </div>
+      <div class="row-actions">
+        <button class="btn ghost small" id="addRowBtn">+ Add shooter</button>
+        <button class="btn" id="saveWeekBtn">Save this round</button>
+      </div>
+      <div class="note">Stations are out of 5 birds each (25 total) for a standard singles round. Leave stations blank and just fill Total if your sheet is different. Saved rounds go into this team's shared history — visible to anyone using this app with the same team selected.</div>
+      <div class="toast" id="saveToast">Saved.</div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-board">
+    <div class="card">
+      <h3>Team Leaderboard</h3>
+      <div id="leaderboardBody"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-trends">
+    <div class="card">
+      <h3>Score Trends</h3>
+      <div class="legend" id="trendLegend"></div>
+      <div id="trendChart"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-history">
+    <div class="card">
+      <h3>Past Rounds</h3>
+      <div id="historyBody"></div>
+    </div>
+  </section>
+
+</main>
+</div>
+
+<script>
+(function(){
+  const COLORS = ['#ff6a2b','#c9a24b','#8ab06a','#6a9ac9','#c96ab0','#c65c4a','#6ac9b0'];
+  const state = { weeks: [], activeTab: 'new', imageBase64: null, draftShooters: [], trendSelected: new Set(), teams: [], teamId: null };
+  const $ = sel => document.querySelector(sel);
+  const TEAM_STORAGE_KEY = 'tsc_team_id';
+
+  document.querySelectorAll('.tab').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      state.activeTab = btn.dataset.tab;
+      document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active', b===btn));
+      document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active', p.id === 'panel-'+btn.dataset.tab));
+      if(btn.dataset.tab==='board') renderLeaderboard();
+      if(btn.dataset.tab==='trends') renderTrends();
+      if(btn.dataset.tab==='history') renderHistory();
+    });
+  });
+
+  async function api(path, opts){
+    const res = await fetch('/api'+path, Object.assign({headers:{'Content-Type':'application/json'}}, opts||{}));
+    if(!res.ok){
+      let msg = 'Request failed';
+      try{ msg = (await res.json()).error || msg; }catch(e){}
+      throw new Error(msg);
+    }
+    if(res.status===204) return null;
+    return res.json();
+  }
+
+  async function initTeams(){
+    try{
+      state.teams = await api('/teams');
+    }catch(e){
+      console.error('Could not load teams', e);
+      state.teams = [];
+    }
+
+    if(state.teams.length===0){
+      $('#noTeamCard').style.display='block';
+      $('#firstTeamBtn').addEventListener('click', async ()=>{
+        const name = $('#firstTeamName').value.trim();
+        if(!name){ alert('Enter a team name first.'); return; }
+        try{
+          const team = await api('/teams', {method:'POST', body: JSON.stringify({name})});
+          state.teams = [team];
+          selectTeam(team.id);
+          $('#noTeamCard').style.display='none';
+          startApp();
+        }catch(e){ alert('Could not create team: '+e.message); }
+      });
+      return;
+    }
+
+    const saved = Number(localStorage.getItem(TEAM_STORAGE_KEY));
+    const savedValid = state.teams.some(t=>t.id===saved);
+    selectTeam(savedValid ? saved : state.teams[0].id);
+    startApp();
+  }
+
+  function selectTeam(id){
+    state.teamId = id;
+    localStorage.setItem(TEAM_STORAGE_KEY, String(id));
+    renderTeamSelector();
+  }
+
+  function renderTeamSelector(){
+    const bar = $('#teamBar');
+    const select = $('#teamSelect');
+    if(state.teams.length===0){ bar.style.display='none'; return; }
+    bar.style.display='flex';
+    select.innerHTML = state.teams.map(t=>`<option value="${t.id}" ${t.id===state.teamId?'selected':''}>${escapeHtml(t.name)}</option>`).join('');
+  }
+
+  $('#teamSelect').addEventListener('change', async (e)=>{
+    selectTeam(Number(e.target.value));
+    state.trendSelected = new Set();
+    await loadWeeks();
+    if(state.activeTab==='board') renderLeaderboard();
+    if(state.activeTab==='trends') renderTrends();
+    if(state.activeTab==='history') renderHistory();
+  });
+
+  $('#newTeamBtn').addEventListener('click', async ()=>{
+    const name = prompt('New team name:');
+    if(!name || !name.trim()) return;
+    try{
+      const team = await api('/teams', {method:'POST', body: JSON.stringify({name: name.trim()})});
+      if(!state.teams.some(t=>t.id===team.id)) state.teams.push(team);
+      selectTeam(team.id);
+      state.trendSelected = new Set();
+      await loadWeeks();
+      renderLeaderboard(); renderTrends(); renderHistory();
+    }catch(e){ alert('Could not create team: '+e.message); }
+  });
+
+  async function startApp(){
+    $('#appShell').style.display='block';
+    await loadWeeks();
+    $('#draftDate').value = todayISO();
+  }
+
+  async function loadWeeks(){
+    if(!state.teamId) return;
+    try{
+      const rounds = await api('/rounds?teamId='+state.teamId);
+      state.weeks = rounds.map(r=>({key:r.id, date:r.date, shooters:r.shooters}));
+      state.weeks.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+    }catch(e){ console.error('Could not load rounds', e); }
+    renderFieldArc();
+  }
+
+  async function saveWeekToApi(entry){
+    const result = await api('/rounds', {method:'POST', body: JSON.stringify(Object.assign({teamId: state.teamId}, entry))});
+    state.weeks.push({key:result.id, date:entry.date, shooters:entry.shooters});
+    state.weeks.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  }
+
+  async function deleteWeekFromApi(key){
+    await api('/rounds/'+key, {method:'DELETE'});
+    state.weeks = state.weeks.filter(w=>w.key!==key);
+  }
+
+  const fileInput = $('#fileInput');
+  const previewImg = $('#previewImg');
+  const uploadLabel = $('#uploadLabel');
+  const extractBtn = $('#extractBtn');
+
+  fileInput.addEventListener('change', (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev)=>{
+      const img = new Image();
+      img.onload = ()=>{
+        const maxDim = 1400;
+        let w = img.width, h = img.height;
+        if(w>maxDim || h>maxDim){ const scale = maxDim/Math.max(w,h); w=Math.round(w*scale); h=Math.round(h*scale); }
+        const canvas = document.createElement('canvas');
+        canvas.width=w; canvas.height=h;
+        canvas.getContext('2d').drawImage(img,0,0,w,h);
+        const dataUrl = canvas.toDataURL('image/jpeg',0.85);
+        state.imageBase64 = dataUrl.split(',')[1];
+        previewImg.src = dataUrl; previewImg.style.display='block';
+        uploadLabel.textContent = 'Photo loaded — tap to replace';
+        extractBtn.disabled = false;
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  $('#manualBtn').addEventListener('click', ()=>{
+    state.draftShooters = [{name:'', stations:[null,null,null,null,null], total:null}];
+    $('#draftDate').value = todayISO();
+    $('#draftCard').style.display='block';
+    renderDraftTable();
+  });
+
+  extractBtn.addEventListener('click', extractScores);
+
+  async function extractScores(){
+    if(!state.imageBase64) return;
+    extractBtn.disabled = true; extractBtn.textContent = 'Reading...';
+    $('#extractError').style.display='none';
+    try{
+      const parsed = await api('/extract', {method:'POST', body: JSON.stringify({image: state.imageBase64})});
+      state.draftShooters = (parsed.shooters||[]).map(s=>({
+        name: s.name || '',
+        stations: Array.isArray(s.stations) ? [0,1,2,3,4].map(i=> s.stations[i]!=null? s.stations[i]: null) : [null,null,null,null,null],
+        total: s.total!=null ? s.total : autoTotal(s.stations)
+      }));
+      if(state.draftShooters.length===0) state.draftShooters=[{name:'',stations:[null,null,null,null,null],total:null}];
+      $('#draftDate').value = parsed.date && /^\d{4}-\d{2}-\d{2}$/.test(parsed.date) ? parsed.date : todayISO();
+      $('#draftCard').style.display='block';
+      renderDraftTable();
+    }catch(err){
+      console.error(err);
+      $('#extractError').textContent = "Couldn't read that sheet automatically (" + err.message + "). You can still enter scores by hand below.";
+      $('#extractError').style.display='block';
+      state.draftShooters = [{name:'',stations:[null,null,null,null,null],total:null}];
+      $('#draftDate').value = todayISO();
+      $('#draftCard').style.display='block';
+      renderDraftTable();
+    }finally{
+      extractBtn.disabled = false; extractBtn.textContent = 'Read scoresheet';
+    }
+  }
+
+  function autoTotal(stations){
+    if(!Array.isArray(stations)) return null;
+    const nums = stations.filter(n=>typeof n==='number');
+    if(nums.length===0) return null;
+    return nums.reduce((a,b)=>a+b,0);
+  }
+  function todayISO(){ return new Date().toISOString().slice(0,10); }
+
+  function renderDraftTable(){
+    const tbody = $('#draftBody');
+    tbody.innerHTML = state.draftShooters.map((s,idx)=>`
+      <tr>
+        <td><input class="name-input" list="shooterNames" value="${escapeAttr(s.name)}" oninput="window.__tscUpdateField(${idx},'name',this.value)"/></td>
+        ${[0,1,2,3,4].map(si=>`<td class="station-cell"><input type="number" min="0" max="5" value="${s.stations[si]!=null?s.stations[si]:''}" oninput="window.__tscUpdateStation(${idx},${si},this.value)"/></td>`).join('')}
+        <td class="total-cell" id="draftTotal-${idx}">${s.total!=null?s.total:'—'}</td>
+        <td><button class="rm" onclick="window.__tscRemoveRow(${idx})">✕</button></td>
+      </tr>
+    `).join('');
+    let dl = document.querySelector('#shooterNames');
+    if(!dl){ dl = document.createElement('datalist'); dl.id='shooterNames'; document.body.appendChild(dl); }
+    const names = new Set();
+    state.weeks.forEach(w=>w.shooters.forEach(sh=>names.add(sh.name)));
+    dl.innerHTML = Array.from(names).map(n=>`<option value="${escapeAttr(n)}"></option>`).join('');
+  }
+
+  window.__tscUpdateField = function(idx, field, value){ state.draftShooters[idx][field] = value; };
+  window.__tscUpdateStation = function(idx, si, value){
+    const n = value===''? null : Math.max(0, Math.min(5, Number(value)));
+    state.draftShooters[idx].stations[si] = n;
+    const total = autoTotal(state.draftShooters[idx].stations);
+    if(total!=null){
+      state.draftShooters[idx].total = total;
+      const cell = document.querySelector('#draftTotal-'+idx);
+      if(cell) cell.textContent = total;
+    }
+  };
+  window.__tscRemoveRow = function(idx){ state.draftShooters.splice(idx,1); renderDraftTable(); };
+
+  $('#addRowBtn').addEventListener('click', ()=>{
+    state.draftShooters.push({name:'', stations:[null,null,null,null,null], total:null});
+    renderDraftTable();
+  });
+
+  $('#saveWeekBtn').addEventListener('click', async ()=>{
+    const date = $('#draftDate').value || todayISO();
+    const shooters = state.draftShooters
+      .filter(s=>s.name && s.name.trim())
+      .map(s=>({name:s.name.trim(), stations:s.stations, total: s.total!=null? s.total : autoTotal(s.stations)}));
+    if(shooters.length===0){ alert('Add at least one shooter with a name before saving.'); return; }
+    const btn = $('#saveWeekBtn');
+    btn.disabled = true; btn.textContent='Saving...';
+    try{
+      await saveWeekToApi({date, shooters});
+      const toast = $('#saveToast');
+      toast.style.display='block';
+      setTimeout(()=>toast.style.display='none', 2500);
+      state.draftShooters = [];
+      $('#draftCard').style.display='none';
+      previewImg.style.display='none';
+      state.imageBase64=null;
+      uploadLabel.textContent = "Tap to choose a photo of this week's scoresheet";
+      extractBtn.disabled = true;
+      fileInput.value='';
+      renderFieldArc();
+    }catch(e){ alert('Could not save: '+e.message); }
+    finally{ btn.disabled=false; btn.textContent='Save this round'; }
+  });
+
+  function aggregate(){
+    const byName = {};
+    state.weeks.forEach(w=>{
+      (w.shooters||[]).forEach(s=>{
+        const key = s.name.trim().toLowerCase();
+        if(!byName[key]) byName[key] = {name:s.name.trim(), rounds:0, totals:[], stationSums:[0,0,0,0,0], stationCounts:[0,0,0,0,0], dates:[]};
+        const rec = byName[key];
+        rec.name = s.name.trim();
+        if(s.total!=null){ rec.rounds++; rec.totals.push(s.total); rec.dates.push(w.date); }
+        (s.stations||[]).forEach((v,i)=>{ if(v!=null){ rec.stationSums[i]+=v; rec.stationCounts[i]++; } });
+      });
+    });
+    return Object.values(byName).map(rec=>({
+      name: rec.name, rounds: rec.rounds,
+      avg: rec.totals.length ? rec.totals.reduce((a,b)=>a+b,0)/rec.totals.length : null,
+      best: rec.totals.length ? Math.max(...rec.totals) : null,
+      stationAvgs: rec.stationSums.map((sum,i)=> rec.stationCounts[i] ? sum/rec.stationCounts[i] : null),
+      dates: rec.dates, totals: rec.totals
+    }));
+  }
+
+  function renderLeaderboard(){
+    const el = $('#leaderboardBody');
+    const agg = aggregate().filter(r=>r.rounds>0).sort((a,b)=> b.avg - a.avg);
+    if(agg.length===0){ el.innerHTML = '<div class="empty">No rounds saved yet. Add one under New Round.</div>'; return; }
+    el.innerHTML = agg.map((r,i)=>`
+      <div class="lb-row">
+        <div class="lb-rank">${i+1}</div>
+        <div style="flex:1"><div class="lb-name">${escapeHtml(r.name)}</div><div class="lb-sub">${r.rounds} round${r.rounds===1?'':'s'} · best ${r.best}</div></div>
+        <div class="lb-avg">${r.avg.toFixed(1)}</div>
+      </div>`).join('');
+  }
+
+  function renderTrends(){
+    const agg = aggregate().filter(r=>r.rounds>0);
+    const legend = $('#trendLegend');
+    if(agg.length===0){ legend.innerHTML=''; $('#trendChart').innerHTML = '<div class="empty">No rounds saved yet.</div>'; return; }
+    if(state.trendSelected.size===0){ agg.sort((a,b)=>b.rounds-a.rounds).slice(0,5).forEach(r=>state.trendSelected.add(r.name)); }
+    legend.innerHTML = agg.map((r,i)=>{
+      const color = COLORS[i % COLORS.length];
+      const active = state.trendSelected.has(r.name);
+      return `<div class="chip ${active?'active':''}" style="--dot:${color}" data-name="${escapeAttr(r.name)}"><span class="dot"></span>${escapeHtml(r.name)}</div>`;
+    }).join('');
+    Array.from(legend.querySelectorAll('.chip')).forEach(chip=>{
+      chip.addEventListener('click', ()=>{
+        const name = chip.dataset.name;
+        if(state.trendSelected.has(name)) state.trendSelected.delete(name); else state.trendSelected.add(name);
+        renderTrends();
+      });
+    });
+    drawChart(agg.filter(r=>state.trendSelected.has(r.name)), agg);
+  }
+
+  function drawChart(selected, allAgg){
+    const container = $('#trendChart');
+    const allDates = Array.from(new Set(state.weeks.map(w=>w.date))).sort();
+    if(allDates.length===0 || selected.length===0){ container.innerHTML = '<div class="empty">Pick a shooter above to see their trend.</div>'; return; }
+    const W=640,H=260,padL=34,padR=14,padT=14,padB=28;
+    const plotW=W-padL-padR, plotH=H-padT-padB;
+    const xFor = i => padL + (allDates.length===1? plotW/2 : (i/(allDates.length-1))*plotW);
+    const yFor = v => padT + plotH - (v/25)*plotH;
+    let gridLines = '';
+    [0,5,10,15,20,25].forEach(v=>{
+      const y = yFor(v);
+      gridLines += `<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="#383b30" stroke-width="1"/>`;
+      gridLines += `<text x="${padL-6}" y="${y+4}" font-size="10" fill="#9c9c8e" text-anchor="end" font-family="IBM Plex Mono, monospace">${v}</text>`;
+    });
+    let series = '';
+    selected.forEach((r)=>{
+      const color = COLORS[allAgg.indexOf(r) % COLORS.length];
+      const points = r.dates.map((d,di)=>{ const xi = allDates.indexOf(d); return [xFor(xi), yFor(r.totals[di])]; });
+      const path = points.map((p,pi)=> (pi===0?'M':'L')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+      series += `<path d="${path}" fill="none" stroke="${color}" stroke-width="2.5"/>`;
+      points.forEach(p=>{ series += `<circle cx="${p[0]}" cy="${p[1]}" r="3.5" fill="${color}"/>`; });
+    });
+    let xLabels = '';
+    allDates.forEach((d,i)=>{
+      if(allDates.length>8 && i% Math.ceil(allDates.length/8) !==0) return;
+      xLabels += `<text x="${xFor(i)}" y="${H-8}" font-size="9" fill="#9c9c8e" text-anchor="middle" font-family="IBM Plex Mono, monospace">${d.slice(5)}</text>`;
+    });
+    container.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">${gridLines}${series}${xLabels}</svg>`;
+  }
+
+  function renderHistory(){
+    const el = $('#historyBody');
+    if(state.weeks.length===0){ el.innerHTML = '<div class="empty">No rounds saved yet.</div>'; return; }
+    const sorted = [...state.weeks].sort((a,b)=> (b.date||'').localeCompare(a.date||''));
+    el.innerHTML = sorted.map(w=>`
+      <div class="history-item" data-key="${escapeAttr(w.key)}">
+        <div class="history-head"><span class="d">${escapeHtml(w.date||'undated')}</span><span class="lb-sub">${(w.shooters||[]).length} shooters</span></div>
+        <div class="history-body">
+          <table class="tbl">
+            <thead><tr><th>Shooter</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>Total</th></tr></thead>
+            <tbody>${(w.shooters||[]).map(s=>`<tr><td>${escapeHtml(s.name)}</td>${[0,1,2,3,4].map(i=>`<td class="mono">${s.stations && s.stations[i]!=null? s.stations[i] : '—'}</td>`).join('')}<td class="total-cell">${s.total!=null?s.total:'—'}</td></tr>`).join('')}</tbody>
+          </table>
+          <div class="row-actions"><button class="btn danger small" onclick="window.__tscDeleteWeek('${w.key}')">Delete round</button></div>
+        </div>
+      </div>`).join('');
+    Array.from(el.querySelectorAll('.history-head')).forEach(head=>{
+      head.addEventListener('click', ()=> head.parentElement.classList.toggle('open'));
+    });
+  }
+
+  window.__tscDeleteWeek = async function(key){
+    if(!confirm('Delete this round? This cannot be undone.')) return;
+    try{ await deleteWeekFromApi(key); renderHistory(); renderFieldArc(); }
+    catch(e){ alert('Could not delete: '+e.message); }
+  };
+
+  function renderFieldArc(){
+    const el = $('#fieldArc');
+    const agg = aggregate();
+    const stationAvgPct = [0,1,2,3,4].map(i=>{
+      let sum=0, cnt=0;
+      agg.forEach(r=>{ if(r.stationAvgs[i]!=null){ sum+=r.stationAvgs[i]; cnt++; } });
+      return cnt ? sum/cnt/5 : null;
+    });
+    const cx=150, cy=104, R=88, r=20;
+    let dots = '';
+    for(let i=0;i<5;i++){
+      const angle = (-70 + i*35) * Math.PI/180;
+      const x = cx + R*Math.sin(angle);
+      const y = cy - R*Math.cos(angle);
+      const pct = stationAvgPct[i];
+      const circumference = 2*Math.PI*r;
+      const dash = pct!=null ? circumference*pct : 0;
+      dots += `<g transform="translate(${x},${y})">
+        <circle r="${r}" fill="none" stroke="#383b30" stroke-width="5"/>
+        <circle r="${r}" fill="none" stroke="#ff6a2b" stroke-width="5" stroke-dasharray="${dash} ${circumference-dash}" stroke-dashoffset="${circumference*0.25}" stroke-linecap="round"/>
+        <text y="5" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="#f2efe6">${pct!=null? Math.round(pct*100)+'%' : '—'}</text>
+        <text y="${r+16}" text-anchor="middle" font-family="Oswald, sans-serif" font-size="10" letter-spacing="1" fill="#9c9c8e">STA ${i+1}</text>
+      </g>`;
+    }
+    el.innerHTML = `<svg viewBox="0 0 300 150" style="width:100%;height:auto">${dots}</svg>`;
+  }
+
+  function escapeHtml(str){ return String(str==null?'':str).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function escapeAttr(str){ return escapeHtml(str); }
+
+  initTeams();
+})();
+</script>
+</body>
+</html>

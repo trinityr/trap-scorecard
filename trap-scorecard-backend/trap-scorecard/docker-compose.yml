@@ -1,0 +1,46 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-trapscores}
+      POSTGRES_USER: ${POSTGRES_USER:-trapadmin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./backend/sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-trapadmin}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-trapadmin}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-trapscores}
+      PORT: 3000
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?set ANTHROPIC_API_KEY in .env}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [internal]
+    ports:
+      # NPM is on a separate VM, so it reaches this service over the
+      # network by IP:port rather than by Docker container name.
+      # Bind to the VM's LAN IP (not 0.0.0.0) so it's not reachable from
+      # anywhere except your Proxmox network. API_HOST_PORT lets you avoid
+      # clashing with anything else already using 3000 on this host — the
+      # container still listens on 3000 internally either way.
+      - "${API_HOST_IP:-0.0.0.0}:${API_HOST_PORT:-3000}:3000"
+
+networks:
+  internal:
+
+volumes:
+  db_data:
