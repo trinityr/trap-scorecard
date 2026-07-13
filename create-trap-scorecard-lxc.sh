@@ -54,6 +54,7 @@ POSTGRES_DB="${POSTGRES_DB:-trapscores}"
 POSTGRES_USER="${POSTGRES_USER:-trapadmin}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-}"   # blank = auto-generate
 CORS_ORIGIN="${CORS_ORIGIN:-*}"              # set to your real frontend origin once you have one
+API_HOST_PORT="${API_HOST_PORT:-3000}"       # published port on this VM — change if 3000 is already taken
 AUTO_LOGIN_CONSOLE="${AUTO_LOGIN_CONSOLE:-0}" # 1 = passwordless root login on `pct console`
 NONINTERACTIVE="${NONINTERACTIVE:-0}"         # 1 = skip the wizard, use defaults/env vars as-is
 
@@ -148,11 +149,33 @@ if [ -z "$CT_PASSWORD" ]; then
   CT_PASSWORD="$(openssl rand -base64 18)"
 fi
 
+if [ -z "$POSTGRES_PASSWORD" ]; then
+  POSTGRES_PASSWORD="$(openssl rand -base64 24)"
+fi
+
 if [ -z "$CTID" ]; then
   CTID="$(pvesh get /cluster/nextid)"
 fi
 
 log "Using container ID $CTID"
+
+# Write credentials to a local file on the Proxmox host RIGHT NOW, before
+# anything that could fail — so if a later step errors out, the generated
+# passwords are still recoverable instead of lost with the script's exit.
+# (For LXC, `pct enter <CTID>` also gets you a root shell without needing
+# this password at all, in case this file goes missing too.)
+CRED_FILE="./trap-scorecard-${CTID}-credentials.txt"
+cat > "$CRED_FILE" <<EOF
+Container ID:      $CTID
+Container hostname: $CT_HOSTNAME
+Root password:      $CT_PASSWORD
+Postgres password:  $POSTGRES_PASSWORD
+Generated:           $(date)
+EOF
+chmod 600 "$CRED_FILE"
+log "Credentials saved to $CRED_FILE (in case anything below fails partway through)"
+
+trap 'echo -e "\n\033[1;31mScript exited early.\033[0m Credentials generated so far are saved in: $CRED_FILE\nIf CT $CTID exists but is stuck, get in with: pct enter $CTID (no password needed as root on this host)."' ERR
 
 # ---------- Template ----------
 log "Checking for a Debian 12 template"
@@ -226,7 +249,8 @@ else
 fi
 
 log "Configuring .env"
-[ -n "$POSTGRES_PASSWORD" ] || POSTGRES_PASSWORD="$(openssl rand -base64 24)"
+pct exec "$CTID" -- bash -c "test -f /root/trap-scorecard/.env.example" \
+  || fail "No .env.example found in /root/trap-scorecard — the git clone or unzip step likely didn't complete. Check with: pct exec $CTID -- ls -la /root/trap-scorecard"
 pct exec "$CTID" -- bash -c "
   set -e
   cd /root/trap-scorecard
@@ -237,6 +261,9 @@ pct exec "$CTID" -- bash -c "
   sed -i 's|^API_HOST_IP=.*|API_HOST_IP=${IP}|' .env
   sed -i 's|^CORS_ORIGIN=.*|CORS_ORIGIN=${CORS_ORIGIN}|' .env
 "
+pct exec "$CTID" -- bash -c "test -s /root/trap-scorecard/.env" \
+  || fail ".env was not created successfully in /root/trap-scorecard. Check with: pct exec $CTID -- cat /root/trap-scorecard/.env"
+log ".env configured"
 
 log "Building and starting the stack (this takes a few minutes on first run)"
 pct exec "$CTID" -- bash -c "cd /root/trap-scorecard && docker compose up -d --build"
@@ -270,7 +297,7 @@ echo "=================================================================="
 echo " Container:        CT $CTID ($CT_HOSTNAME) at $IP"
 echo " Root password:     $CT_PASSWORD"
 echo " Postgres password: $POSTGRES_PASSWORD"
-echo " (both also saved in /root/.env inside the container)"
+echo " (also saved in $CRED_FILE on this Proxmox host, and in /root/.env inside the container)"
 if [ "$AUTO_LOGIN_CONSOLE" = "1" ]; then
   echo " Console auto-login: ENABLED — 'pct console $CTID' drops into root with no password."
 fi
