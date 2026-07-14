@@ -16,9 +16,29 @@ CREATE TABLE IF NOT EXISTS app_settings (
   key TEXT PRIMARY KEY,
   value TEXT
 );
--- Note: the session store table is created automatically by
--- connect-pg-simple on first run (createTableIfMissing: true) — no need
--- to define it here.
+
+-- connect-pg-simple's session store. We create this ourselves rather
+-- than relying on its own createTableIfMissing option, because that
+-- creates the table lazily on first use — on a brand-new database, the
+-- very first incoming request can arrive before that finishes, causing
+-- the store to error out. Pre-creating it here removes that race
+-- entirely. Schema matches connect-pg-simple's own default exactly.
+CREATE TABLE IF NOT EXISTS "session" (
+  "sid" varchar NOT NULL COLLATE "default",
+  "sess" json NOT NULL,
+  "expire" timestamp(6) NOT NULL
+);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'session_pkey'
+  ) THEN
+    ALTER TABLE "session" ADD CONSTRAINT "session_pkey" PRIMARY KEY ("sid") NOT DEFERRABLE INITIALLY IMMEDIATE;
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
 
 CREATE TABLE IF NOT EXISTS shooters (
   id SERIAL PRIMARY KEY,

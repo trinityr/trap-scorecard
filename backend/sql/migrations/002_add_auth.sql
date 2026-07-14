@@ -19,9 +19,28 @@ CREATE TABLE IF NOT EXISTS app_settings (
 
 CREATE INDEX IF NOT EXISTS idx_users_team ON users(team_id);
 
+-- connect-pg-simple's session store, pre-created to avoid a startup race
+-- (see init.sql for the full explanation).
+CREATE TABLE IF NOT EXISTS "session" (
+  "sid" varchar NOT NULL COLLATE "default",
+  "sess" json NOT NULL,
+  "expire" timestamp(6) NOT NULL
+);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'session_pkey'
+  ) THEN
+    ALTER TABLE "session" ADD CONSTRAINT "session_pkey" PRIMARY KEY ("sid") NOT DEFERRABLE INITIALLY IMMEDIATE;
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
+
 COMMIT;
 
--- The session store table is created automatically by connect-pg-simple
--- on first app startup (createTableIfMissing: true) — nothing to do here.
 -- The first person to register through the app becomes an admin
--- automatically; there's no separate bootstrap step required.
+-- automatically; there's no separate bootstrap step required (though the
+-- LXC deploy script can also pre-seed a known admin account for you —
+-- see the README).

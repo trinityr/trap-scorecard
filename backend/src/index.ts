@@ -17,6 +17,17 @@ import siteRouter from "./routes/site";
 const app = express();
 const port = process.env.PORT || 3000;
 
+// Without these, an unhandled promise rejection or an EventEmitter
+// 'error' with no listener (which connect-pg-simple can emit on a DB
+// hiccup) crashes the entire Node process by default — which looks like
+// a 502 to anything proxying this app. Log instead of dying.
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled promise rejection:", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught exception:", err);
+});
+
 // Needed so express-session's "secure" cookie flag correctly trusts
 // X-Forwarded-Proto from Nginx Proxy Manager (or any reverse proxy) in
 // front of this container.
@@ -44,9 +55,19 @@ app.use(
 app.use(express.json({ limit: "10mb" })); // scoresheet photos are base64-encoded in the request body
 
 const PgSession = connectPgSimple(session);
+const sessionStore = new PgSession({ pool, createTableIfMissing: true });
+// connect-pg-simple's store is an EventEmitter — emitting 'error' with no
+// listener attached crashes the whole process. This was the actual bug:
+// a DB hiccup on the session store (most likely the createTableIfMissing
+// race on a brand-new database) took down the entire server instead of
+// just failing one request.
+sessionStore.on("error", (err) => {
+  console.error("Session store error:", err);
+});
+
 app.use(
   session({
-    store: new PgSession({ pool, createTableIfMissing: true }),
+    store: sessionStore,
     secret: process.env.SESSION_SECRET || "change-me-set-SESSION_SECRET-in-env",
     resave: false,
     saveUninitialized: false,
