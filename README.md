@@ -23,6 +23,7 @@ backend/
     004_add_yardage.sql     <- run manually to add the yardage column to rounds
     005_add_round_number.sql <- run manually to add the round-number column to rounds
     006_add_substitutes.sql <- run manually to add substitute tracking to scores
+    007_add_contact_info.sql <- run manually to add phone/address columns to users
   public/
     index.html              <- the scorecard web app: sign-in/register + admin panel + scoring UI
   src/
@@ -122,11 +123,22 @@ Admins get an **Admin** tab in the app with:
   account row, not their name), move them to a different team, or delete
   them (this also deletes all of their logged scores).
 - **Rounds** — browse every round across every team and edit its date,
-  yardage, or individual scores, or delete it outright — not limited to
-  your own team the way the regular New Round / History tabs are.
+  round number, yardage, team, or individual scores (including who subbed
+  for whom), or delete it outright — not limited to your own team the way
+  the regular New Round / History tabs are. Changing the Team dropdown
+  moves the round to that team and re-matches shooter names against its
+  roster. Shooter-name and "subbing for" fields autocomplete against the
+  full cross-team roster to cut down on typos.
+
+Admins also see a **Team** picker at the top of the New Round tab, so they
+can log a round on behalf of any team, not just their own — the saved
+round shows up under that team everywhere (Dashboard, History, Admin
+Rounds), not the admin's own team.
 
 Any signed-in user (not just admins) also gets a **Profile** tab to set an
-optional display name, shown instead of their email around the app.
+optional display name, phone number, and mailing address — basic contact
+info shown instead of their email around the app, and visible to admins in
+the Users table.
 
 Sessions are stored in Postgres (via `connect-pg-simple`) and last 30
 days. If you ever change `SESSION_SECRET`, everyone gets signed out — this
@@ -144,13 +156,15 @@ entered is touched. After that, everyone just registers as normal; the
 first person to do so becomes admin.
 
 **If you already had accounts before the Profile tab, yardage, round
-numbers, or substitutes were added**, run these migrations once against
-your existing database (all are additive — nothing existing is touched):
+numbers, substitutes, or contact info were added**, run these migrations
+once against your existing database (all are additive — nothing existing
+is touched):
 ```bash
 docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migrations/003_add_user_name.sql
 docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migrations/004_add_yardage.sql
 docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migrations/005_add_round_number.sql
 docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migrations/006_add_substitutes.sql
+docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migrations/007_add_contact_info.sql
 ```
 
 ## Teams
@@ -170,10 +184,14 @@ once — the auth migration above assumes teams already exist.
 
 ## Rounds, substitutes, and drilldown
 
-Clubs that shoot more than one round a night can set a **Round #** on each
-entry in New Round (auto-suggested from how many rounds already exist for
-that date, but editable) — it shows up in History and the Admin round
-list/editor.
+Clubs that shoot more than one round a night can set a **Rnd** number on
+each individual shooter row in New Round (auto-suggested from how many
+rounds already exist for that date, but editable per row). If the Read
+Scoresheet extraction — or a single manual entry session — actually covers
+more than one round, just change the Rnd number on the rows that belong to
+Round 2 before saving: on Save, rows get grouped by their Rnd number and
+saved as separate round records automatically, all under the same date and
+yardage. Round number shows up in History and the Admin round list/editor.
 
 If someone filled in for a regular team member, put that member's name in
 the **Subbing for** field next to the sub's row. This keeps two things true
@@ -213,9 +231,9 @@ below each.
 - `POST /api/auth/login` — body: `{ "email", "password" }`
 - `POST /api/auth/logout`
 - `GET /api/auth/me` — current session user, or 401
-- `PUT /api/auth/me` — body: `{ "name" }` — requires sign-in, sets/clears your own display name
+- `PUT /api/auth/me` — body: `{ "name", "phone", "address" }` — requires sign-in, sets/clears your own display name and contact info
 - `GET /api/admin/settings` / `PUT /api/admin/settings` — admin only
-- `GET /api/admin/users` / `PUT /api/admin/users/:id` / `DELETE /api/admin/users/:id` — admin only
+- `GET /api/admin/users` (includes `phone`) / `PUT /api/admin/users/:id` / `DELETE /api/admin/users/:id` — admin only
 - `POST /api/admin/teams` — admin only, create a team
 - `PUT /api/admin/teams/:id` — admin only, body: `{ "name" }`, rename a team
 - `DELETE /api/admin/teams/:id` — admin only, cascades to that team's shooters/rounds/scores; blocked while users are still assigned to it
@@ -225,10 +243,10 @@ below each.
 - `DELETE /api/admin/shooters/:id` — admin only, also deletes that shooter's score history
 - `GET /api/admin/rounds` — admin only, every round across every team
 - `GET /api/admin/rounds/:id` — admin only, full shooter/score detail for one round, including who subbed for whom
-- `PUT /api/admin/rounds/:id` — admin only, body: `{ "date", "yardage", "roundNumber", "shooters": [{ "name", "stations", "total", "subFor"? }] }` — replaces the round's date/round number/yardage/scores (team is fixed)
+- `PUT /api/admin/rounds/:id` — admin only, body: `{ "date", "yardage", "roundNumber", "teamId"?, "shooters": [{ "name", "stations", "total", "subFor"? }] }` — replaces the round's date/round number/yardage/scores; passing a different `teamId` moves the round to that team and re-matches shooters against its roster
 - `DELETE /api/admin/rounds/:id` — admin only, deletes any round regardless of team
 - `GET /api/teams` — list all teams (public, used by the registration form)
-- `POST /api/rounds` — body: `{ "date": "YYYY-MM-DD", "yardage": n or null, "roundNumber": n (default 1), "shooters": [{ "name", "stations": [n,n,n,n,n], "total": n, "subFor": "team member's name" or null }] }` — requires sign-in, scoped to your team automatically
+- `POST /api/rounds` — body: `{ "date": "YYYY-MM-DD", "yardage": n or null, "roundNumber": n (default 1), "teamId"? (admin only, logs the round for a different team), "shooters": [{ "name", "stations": [n,n,n,n,n], "total": n, "subFor": "team member's name" or null }] }` — requires sign-in, scoped to your team automatically (non-admins can't override `teamId`)
 - `GET /api/rounds` — every saved round for your team, each shooter entry includes `subFor` if they were subbing — requires sign-in
 - `DELETE /api/rounds/:id` — requires sign-in, only deletes rounds belonging to your own team
 - `GET /api/stats/leaderboard` — requires sign-in, scoped to your team, **rolls substitute scores into the team member they subbed for**

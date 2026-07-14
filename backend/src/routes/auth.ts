@@ -63,7 +63,7 @@ router.post("/register", async (req: Request, res: Response) => {
     const userResult = await client.query(
       `INSERT INTO users (email, password_hash, name, is_admin, team_id)
        VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, email, name, is_admin, team_id`,
+       RETURNING id, email, name, phone, address, is_admin, team_id`,
       [cleanEmail, passwordHash, cleanName, isFirstUser, teamIdToUse]
     );
 
@@ -76,6 +76,8 @@ router.post("/register", async (req: Request, res: Response) => {
       id: user.id,
       email: user.email,
       name: user.name,
+      phone: user.phone,
+      address: user.address,
       isAdmin: user.is_admin,
       teamId: user.team_id,
       teamName: teamRow.rows[0]?.name,
@@ -106,7 +108,7 @@ router.post("/login", async (req: Request, res: Response) => {
 
   try {
     const result = await pool.query(
-      "SELECT id, email, password_hash, name, is_admin, team_id FROM users WHERE email = $1",
+      "SELECT id, email, password_hash, name, phone, address, is_admin, team_id FROM users WHERE email = $1",
       [cleanEmail]
     );
     const row = result.rows[0];
@@ -128,6 +130,8 @@ router.post("/login", async (req: Request, res: Response) => {
       id: row.id,
       email: row.email,
       name: row.name,
+      phone: row.phone,
+      address: row.address,
       isAdmin: row.is_admin,
       teamId: row.team_id,
       teamName,
@@ -154,18 +158,21 @@ router.get("/me", (req: Request, res: Response) => {
   res.json(req.session.user);
 });
 
-// PUT /api/auth/me — lets a signed-in user set/change their own display name.
-// This is the "User Profile" tab in the frontend. Scoped to the current
-// session's user only — there's no :id param, so there's no way to edit
-// anyone else's profile through this route.
+// PUT /api/auth/me — lets a signed-in user set/change their own display
+// name and basic contact info (phone, address). This is the "User Profile"
+// tab in the frontend. Scoped to the current session's user only — there's
+// no :id param, so there's no way to edit anyone else's profile through
+// this route.
 router.put("/me", requireAuth, async (req: Request, res: Response) => {
-  const { name } = req.body || {};
+  const { name, phone, address } = req.body || {};
   const cleanName = String(name ?? "").trim();
+  const cleanPhone = String(phone ?? "").trim();
+  const cleanAddress = String(address ?? "").trim();
 
   try {
     const result = await pool.query(
-      "UPDATE users SET name = $1 WHERE id = $2 RETURNING id, email, name, is_admin, team_id",
-      [cleanName || null, req.session.user!.id]
+      "UPDATE users SET name = $1, phone = $2, address = $3 WHERE id = $4 RETURNING id, email, name, phone, address, is_admin, team_id",
+      [cleanName || null, cleanPhone || null, cleanAddress || null, req.session.user!.id]
     );
     const row = result.rows[0];
     if (!row) {
@@ -173,6 +180,8 @@ router.put("/me", requireAuth, async (req: Request, res: Response) => {
     }
 
     req.session.user!.name = row.name;
+    req.session.user!.phone = row.phone;
+    req.session.user!.address = row.address;
     res.json(req.session.user);
   } catch (err) {
     console.error(err);

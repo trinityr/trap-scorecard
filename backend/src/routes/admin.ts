@@ -45,7 +45,7 @@ router.put("/settings", async (req: Request, res: Response) => {
 router.get("/users", async (_req: Request, res: Response) => {
   try {
     const result = await pool.query(`
-      SELECT u.id, u.email, u.name, u.is_admin, u.team_id, t.name AS team_name, u.created_at
+      SELECT u.id, u.email, u.name, u.phone, u.is_admin, u.team_id, t.name AS team_name, u.created_at
       FROM users u
       LEFT JOIN teams t ON t.id = u.team_id
       ORDER BY u.created_at ASC
@@ -323,12 +323,14 @@ router.get("/rounds/:id", async (req: Request, res: Response) => {
 });
 
 // PUT /api/admin/rounds/:id - replace a round's date, round number, yardage,
-// and full set of shooter scores (including who subbed for whom). The
-// round's team is fixed (not editable here) — every shooter listed is
-// upserted against that team's roster the same way a normal round save
-// works, then all old score rows for the round are replaced with the new set.
+// team, and full set of shooter scores (including who subbed for whom).
+// If teamId is provided and differs from the round's current team, the
+// round is moved to that team and every shooter listed (including subs)
+// is resolved/created against the NEW team's roster — same as reassigning
+// a shooter's team elsewhere in the admin panel. All old score rows for
+// the round are replaced with the new set either way.
 router.put("/rounds/:id", async (req: Request, res: Response) => {
-  const { date, yardage, roundNumber, shooters } = req.body || {};
+  const { date, yardage, roundNumber, teamId: requestedTeamId, shooters } = req.body || {};
   if (!date || !Array.isArray(shooters)) {
     return res.status(400).json({ error: "Request needs a date and a shooters array." });
   }
@@ -341,16 +343,18 @@ router.put("/rounds/:id", async (req: Request, res: Response) => {
     await client.query("BEGIN");
 
     const roundCheck = await client.query("SELECT team_id FROM rounds WHERE id = $1", [req.params.id]);
-    const teamId = roundCheck.rows[0]?.team_id;
-    if (!teamId) {
+    const currentTeamId = roundCheck.rows[0]?.team_id;
+    if (!currentTeamId) {
       await client.query("ROLLBACK");
       return res.status(404).json({ error: "Round not found." });
     }
+    const teamId = requestedTeamId ? Number(requestedTeamId) : currentTeamId;
 
-    await client.query("UPDATE rounds SET round_date = $1, yardage = $2, round_number = $3 WHERE id = $4", [
+    await client.query("UPDATE rounds SET round_date = $1, yardage = $2, round_number = $3, team_id = $4 WHERE id = $5", [
       date,
       cleanYardage,
       cleanRoundNumber,
+      teamId,
       req.params.id,
     ]);
     await client.query("DELETE FROM scores WHERE round_id = $1", [req.params.id]);

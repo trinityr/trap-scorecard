@@ -203,6 +203,11 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
   </section>
 
   <section class="panel" id="panel-new">
+    <div class="card" id="adminTeamPickerCard" style="display:none">
+      <h3>Team</h3>
+      <div class="field"><label>Entering scores for</label><select id="draftTeamSelect"></select></div>
+      <div class="note" style="margin-top:0">As an admin, you can log a round for any team.</div>
+    </div>
     <div class="card">
       <h3>1 — Upload the sheet</h3>
       <label class="upload" id="uploadZone">
@@ -225,17 +230,13 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
         <input type="date" id="draftDate"/>
       </div>
       <div class="field">
-        <label>Round #</label>
-        <input type="number" min="1" max="9" id="draftRoundNumber" placeholder="1"/>
-      </div>
-      <div class="field">
         <label>Yardage</label>
         <input type="number" min="16" max="27" id="draftYardage" placeholder="e.g. 16"/>
       </div>
       <div style="overflow-x:auto">
         <table class="tbl" id="draftTable">
           <thead>
-            <tr><th style="min-width:120px">Shooter</th><th>Sta 1</th><th>Sta 2</th><th>Sta 3</th><th>Sta 4</th><th>Sta 5</th><th>Total</th><th style="min-width:120px">Subbing for</th><th></th></tr>
+            <tr><th style="min-width:120px">Shooter</th><th>Rnd</th><th>Sta 1</th><th>Sta 2</th><th>Sta 3</th><th>Sta 4</th><th>Sta 5</th><th>Total</th><th style="min-width:120px">Subbing for</th><th></th></tr>
           </thead>
           <tbody id="draftBody"></tbody>
         </table>
@@ -244,7 +245,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
         <button class="btn ghost small" id="addRowBtn">+ Add shooter</button>
         <button class="btn" id="saveWeekBtn">Save this round</button>
       </div>
-      <div class="note">Stations are out of 5 birds each (25 total) for a standard singles round. Leave stations blank and just fill Total if your sheet is different. If someone filled in for a regular team member, put that member's name in "Subbing for" — the sub's own stats stay separate, but their score counts toward that member's line on the Team Leaderboard.</div>
+      <div class="note">Stations are out of 5 birds each (25 total) for a standard singles round. Leave stations blank and just fill Total if your sheet is different. If your club shoots multiple rounds a night and one photo or entry session covers more than one, use the "Rnd" column to mark which round each row belongs to — rows get split into separate round records automatically. If someone filled in for a regular team member, put that member's name in "Subbing for" — the sub's own stats stay separate, but their score counts toward that member's line on the Team Leaderboard.</div>
       <div class="toast" id="saveToast">Saved.</div>
     </div>
   </section>
@@ -286,10 +287,12 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
       <h3>Your profile</h3>
       <div class="field"><label>Email</label><input type="text" id="profileEmail" disabled/></div>
       <div class="field"><label>Display name</label><input type="text" id="profileName" placeholder="e.g. Trinity R."/></div>
-      <button class="btn" id="saveProfileBtn">Save name</button>
+      <div class="field"><label>Phone</label><input type="text" id="profilePhone" placeholder="e.g. (555) 123-4567"/></div>
+      <div class="field"><label>Mailing address</label><input type="text" id="profileAddress" placeholder="e.g. 123 Range Rd, Yourtown, ST 00000"/></div>
+      <button class="btn" id="saveProfileBtn">Save profile</button>
       <div class="toast" id="profileToast">Saved.</div>
       <div class="error" id="profileError"></div>
-      <div class="note">Your display name shows up around the app instead of your email. Leave it blank to fall back to your email.</div>
+      <div class="note">Your display name shows up around the app instead of your email. Phone and address are basic contact info for your team — leave any field blank if you'd rather not share it.</div>
     </div>
   </section>
 
@@ -315,7 +318,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     <div class="card admin-users-table">
       <h3>Users</h3>
       <table class="tbl">
-        <thead><tr><th>Name</th><th>Email</th><th>Team</th><th>Admin</th><th>Joined</th><th></th></tr></thead>
+        <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Team</th><th>Admin</th><th>Joined</th><th></th></tr></thead>
         <tbody id="adminUsersBody"></tbody>
       </table>
     </div>
@@ -338,7 +341,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
         <tbody id="adminShootersBody"></tbody>
       </table>
       <div class="row-actions">
-        <input type="text" id="adminNewShooterName" placeholder="Shooter name" style="flex:1;min-width:140px;background:var(--bg-panel-raised);border:1px solid var(--line);color:var(--text-primary);padding:8px 10px;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:13px;"/>
+        <input type="text" id="adminNewShooterName" list="adminShooterNames" placeholder="Shooter name" style="flex:1;min-width:140px;background:var(--bg-panel-raised);border:1px solid var(--line);color:var(--text-primary);padding:8px 10px;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:13px;"/>
         <select id="adminNewShooterTeam" style="background:var(--bg-panel-raised);border:1px solid var(--line);color:var(--text-primary);padding:8px 10px;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:13px;"></select>
         <button class="btn ghost small" id="adminAddShooterBtn">Add shooter</button>
       </div>
@@ -443,8 +446,27 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     $('#authWrap').style.display='none';
     renderSessionBar();
     renderAdminTabVisibility();
+    setupAdminTeamPicker();
     $('#appShell').style.display='block';
     startApp();
+  }
+
+  // Admins can log a round for any team, not just their own — shows a Team
+  // picker at the top of New Round and preloads the full shooter roster
+  // (across teams) so name autocomplete works there too.
+  async function setupAdminTeamPicker(){
+    if(!state.user.isAdmin) return;
+    $('#adminTeamPickerCard').style.display='block';
+    try{
+      const teams = await api('/teams');
+      state.teams = teams;
+      const sel = $('#draftTeamSelect');
+      sel.innerHTML = teams.map(t=>`<option value="${t.id}" ${t.id===state.user.teamId?'selected':''}>${escapeHtml(t.name)}</option>`).join('');
+      sel.addEventListener('change', renderDraftTable);
+    }catch(e){ console.error(e); }
+    try{
+      state.adminAllShooters = await api('/admin/shooters');
+    }catch(e){ console.error(e); }
   }
 
   function renderSessionBar(){
@@ -502,8 +524,14 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
 
   async function saveWeekToApi(entry){
     const result = await api('/rounds', {method:'POST', body: JSON.stringify(entry)});
-    state.weeks.push({key:result.id, date:entry.date, yardage:entry.yardage, roundNumber:entry.roundNumber, shooters:entry.shooters});
-    state.weeks.sort((a,b)=>(a.date||'').localeCompare(b.date||'') || (a.roundNumber||1)-(b.roundNumber||1));
+    // Only reflect this round in local state (Dashboard/History/Leaderboard)
+    // if it belongs to the signed-in user's own team. An admin entering a
+    // round for a different team shouldn't see it mixed into their own
+    // team's view — it lives under that team, visible via Admin > Rounds.
+    if(!entry.teamId || entry.teamId === state.user.teamId){
+      state.weeks.push({key:result.id, date:entry.date, yardage:entry.yardage, roundNumber:entry.roundNumber, shooters:entry.shooters});
+      state.weeks.sort((a,b)=>(a.date||'').localeCompare(b.date||'') || (a.roundNumber||1)-(b.roundNumber||1));
+    }
   }
 
   function suggestRoundNumber(date){
@@ -546,11 +574,10 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
   });
 
   $('#manualBtn').addEventListener('click', ()=>{
-    state.draftShooters = [{name:'', stations:[null,null,null,null,null], total:null, subFor:null}];
     const date = todayISO();
+    state.draftShooters = [{name:'', stations:[null,null,null,null,null], total:null, subFor:null, roundNumber:suggestRoundNumber(date)}];
     $('#draftDate').value = date;
     $('#draftYardage').value = '';
-    $('#draftRoundNumber').value = suggestRoundNumber(date);
     $('#draftCard').style.display='block';
     renderDraftTable();
   });
@@ -563,27 +590,27 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     $('#extractError').style.display='none';
     try{
       const parsed = await api('/extract', {method:'POST', body: JSON.stringify({image: state.imageBase64})});
+      const date = parsed.date && /^\d{4}-\d{2}-\d{2}$/.test(parsed.date) ? parsed.date : todayISO();
+      const rnd = suggestRoundNumber(date);
       state.draftShooters = (parsed.shooters||[]).map(s=>({
         name: s.name || '',
         stations: Array.isArray(s.stations) ? [0,1,2,3,4].map(i=> s.stations[i]!=null? s.stations[i]: null) : [null,null,null,null,null],
         total: s.total!=null ? s.total : autoTotal(s.stations),
-        subFor: null
+        subFor: null,
+        roundNumber: rnd
       }));
-      if(state.draftShooters.length===0) state.draftShooters=[{name:'',stations:[null,null,null,null,null],total:null,subFor:null}];
-      const date = parsed.date && /^\d{4}-\d{2}-\d{2}$/.test(parsed.date) ? parsed.date : todayISO();
+      if(state.draftShooters.length===0) state.draftShooters=[{name:'',stations:[null,null,null,null,null],total:null,subFor:null,roundNumber:rnd}];
       $('#draftDate').value = date;
       $('#draftYardage').value = parsed.yardage!=null ? parsed.yardage : '';
-      $('#draftRoundNumber').value = suggestRoundNumber(date);
       $('#draftCard').style.display='block';
       renderDraftTable();
     }catch(err){
       console.error(err);
       $('#extractError').textContent = "Couldn't read that sheet automatically (" + err.message + "). You can still enter scores by hand below.";
       $('#extractError').style.display='block';
-      state.draftShooters = [{name:'',stations:[null,null,null,null,null],total:null,subFor:null}];
       const date = todayISO();
+      state.draftShooters = [{name:'',stations:[null,null,null,null,null],total:null,subFor:null,roundNumber:suggestRoundNumber(date)}];
       $('#draftDate').value = date;
-      $('#draftRoundNumber').value = suggestRoundNumber(date);
       $('#draftCard').style.display='block';
       renderDraftTable();
     }finally{
@@ -604,6 +631,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     tbody.innerHTML = state.draftShooters.map((s,idx)=>`
       <tr>
         <td><input class="name-input" list="shooterNames" value="${escapeAttr(s.name)}" oninput="window.__tscUpdateField(${idx},'name',this.value)"/></td>
+        <td class="station-cell"><input type="number" min="1" max="9" value="${s.roundNumber||1}" oninput="window.__tscUpdateRowRound(${idx},this.value)"/></td>
         ${[0,1,2,3,4].map(si=>`<td class="station-cell"><input type="number" min="0" max="5" value="${s.stations[si]!=null?s.stations[si]:''}" oninput="window.__tscUpdateStation(${idx},${si},this.value)"/></td>`).join('')}
         <td class="total-cell" id="draftTotal-${idx}">${s.total!=null?s.total:'—'}</td>
         <td><input class="name-input" list="shooterNames" placeholder="—" value="${escapeAttr(s.subFor||'')}" oninput="window.__tscUpdateField(${idx},'subFor',this.value)"/></td>
@@ -613,11 +641,16 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     let dl = document.querySelector('#shooterNames');
     if(!dl){ dl = document.createElement('datalist'); dl.id='shooterNames'; document.body.appendChild(dl); }
     const names = new Set();
+    if(state.user && state.user.isAdmin && Array.isArray(state.adminAllShooters)){
+      const selTeamId = Number(($('#draftTeamSelect') && $('#draftTeamSelect').value) || state.user.teamId);
+      state.adminAllShooters.filter(s=>s.team_id===selTeamId).forEach(s=>names.add(s.name));
+    }
     state.weeks.forEach(w=>w.shooters.forEach(sh=>names.add(sh.name)));
     dl.innerHTML = Array.from(names).map(n=>`<option value="${escapeAttr(n)}"></option>`).join('');
   }
 
   window.__tscUpdateField = function(idx, field, value){ state.draftShooters[idx][field] = value; };
+  window.__tscUpdateRowRound = function(idx, value){ state.draftShooters[idx].roundNumber = value===''? 1 : Math.max(1, Number(value)); };
   window.__tscUpdateStation = function(idx, si, value){
     const n = value===''? null : Math.max(0, Math.min(5, Number(value)));
     state.draftShooters[idx].stations[si] = n;
@@ -631,7 +664,8 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
   window.__tscRemoveRow = function(idx){ state.draftShooters.splice(idx,1); renderDraftTable(); };
 
   $('#addRowBtn').addEventListener('click', ()=>{
-    state.draftShooters.push({name:'', stations:[null,null,null,null,null], total:null, subFor:null});
+    const date = $('#draftDate').value || todayISO();
+    state.draftShooters.push({name:'', stations:[null,null,null,null,null], total:null, subFor:null, roundNumber:suggestRoundNumber(date)});
     renderDraftTable();
   });
 
@@ -639,19 +673,33 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     const date = $('#draftDate').value || todayISO();
     const yardageVal = $('#draftYardage').value;
     const yardage = yardageVal==='' ? null : Number(yardageVal);
-    const roundNumberVal = $('#draftRoundNumber').value;
-    const roundNumber = roundNumberVal==='' ? 1 : Number(roundNumberVal);
-    const shooters = state.draftShooters
-      .filter(s=>s.name && s.name.trim())
-      .map(s=>({name:s.name.trim(), stations:s.stations, total: s.total!=null? s.total : autoTotal(s.stations), subFor: s.subFor && s.subFor.trim() ? s.subFor.trim() : null}));
-    if(shooters.length===0){ alert('Add at least one shooter with a name before saving.'); return; }
+    const teamId = (state.user.isAdmin && $('#draftTeamSelect')) ? Number($('#draftTeamSelect').value) : undefined;
+    const validRows = state.draftShooters.filter(s=>s.name && s.name.trim());
+    if(validRows.length===0){ alert('Add at least one shooter with a name before saving.'); return; }
+
+    // Split rows by their own Round # so a single upload/entry session that
+    // actually covers more than one round (e.g. Round 1 and Round 2 shot
+    // the same night) gets saved as separate round records instead of one.
+    const groups = {};
+    validRows.forEach(s=>{
+      const rnd = s.roundNumber || 1;
+      if(!groups[rnd]) groups[rnd] = [];
+      groups[rnd].push({name:s.name.trim(), stations:s.stations, total: s.total!=null? s.total : autoTotal(s.stations), subFor: s.subFor && s.subFor.trim() ? s.subFor.trim() : null});
+    });
+    const roundNumbers = Object.keys(groups).map(Number).sort((a,b)=>a-b);
+
     const btn = $('#saveWeekBtn');
     btn.disabled = true; btn.textContent='Saving...';
     try{
-      await saveWeekToApi({date, yardage, roundNumber, shooters});
+      for(const rnd of roundNumbers){
+        const entry = {date, yardage, roundNumber: rnd, shooters: groups[rnd]};
+        if(teamId) entry.teamId = teamId;
+        await saveWeekToApi(entry);
+      }
       const toast = $('#saveToast');
-      toast.style.display='block';
-      setTimeout(()=>toast.style.display='none', 2500);
+      toast.style.display= roundNumbers.length>1 ? 'block' : 'block';
+      toast.textContent = roundNumbers.length>1 ? `Saved as ${roundNumbers.length} separate rounds.` : 'Saved.';
+      setTimeout(()=>{ toast.style.display='none'; toast.textContent='Saved.'; }, 2500);
       state.draftShooters = [];
       $('#draftCard').style.display='none';
       previewImg.style.display='none';
@@ -660,7 +708,6 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
       extractBtn.disabled = true;
       fileInput.value='';
       $('#draftYardage').value='';
-      $('#draftRoundNumber').value='';
       renderFieldArc();
     }catch(e){ alert('Could not save: '+e.message); }
     finally{ btn.disabled=false; btn.textContent='Save this round'; }
@@ -939,23 +986,27 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
   function loadProfilePanel(){
     $('#profileEmail').value = state.user.email;
     $('#profileName').value = state.user.name || '';
+    $('#profilePhone').value = state.user.phone || '';
+    $('#profileAddress').value = state.user.address || '';
     $('#profileError').style.display='none';
   }
 
   $('#saveProfileBtn').addEventListener('click', async ()=>{
     $('#profileError').style.display='none';
     const name = $('#profileName').value.trim();
+    const phone = $('#profilePhone').value.trim();
+    const address = $('#profileAddress').value.trim();
     const btn = $('#saveProfileBtn');
     btn.disabled = true; btn.textContent = 'Saving...';
     try{
-      const user = await api('/auth/me', {method:'PUT', body: JSON.stringify({name})});
+      const user = await api('/auth/me', {method:'PUT', body: JSON.stringify({name, phone, address})});
       state.user = user;
       renderSessionBar();
       const toast = $('#profileToast');
       toast.style.display='block';
       setTimeout(()=>toast.style.display='none', 2000);
     }catch(e){ showAuthError('#profileError', e.message); }
-    finally{ btn.disabled=false; btn.textContent='Save name'; }
+    finally{ btn.disabled=false; btn.textContent='Save profile'; }
   });
 
   // ---------- Admin panel ----------
@@ -972,10 +1023,12 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     try{
       const users = await api('/admin/users');
       teams = await api('/teams');
+      state.teams = teams;
       $('#adminUsersBody').innerHTML = users.map(u=>`
         <tr>
           <td>${escapeHtml(u.name||'—')}</td>
           <td>${escapeHtml(u.email)}</td>
+          <td class="mono" style="font-size:12px">${escapeHtml(u.phone||'—')}</td>
           <td><select onchange="window.__tscSetUserTeam(${u.id}, this.value)">${teams.map(t=>`<option value="${t.id}" ${t.id===u.team_id?'selected':''}>${escapeHtml(t.name)}</option>`).join('')}</select></td>
           <td><input type="checkbox" ${u.is_admin?'checked':''} onchange="window.__tscSetUserAdmin(${u.id}, this.checked)"/></td>
           <td class="mono" style="font-size:11px">${new Date(u.created_at).toLocaleDateString()}</td>
@@ -987,7 +1040,12 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
 
     try{
       const shooters = await api('/admin/shooters');
+      state.adminAllShooters = shooters;
       renderAdminShootersTable(shooters, teams);
+      let dl = document.querySelector('#adminShooterNames');
+      if(!dl){ dl = document.createElement('datalist'); dl.id='adminShooterNames'; document.body.appendChild(dl); }
+      const names = new Set(shooters.map(s=>s.name));
+      dl.innerHTML = Array.from(names).map(n=>`<option value="${escapeAttr(n)}"></option>`).join('');
     }catch(e){ console.error(e); }
 
     try{
@@ -1090,9 +1148,11 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     const body = $('#adminRoundBody-'+id);
     state.adminEditingRound = { id, draft: { shooters: detail.shooters.map(s=>({name:s.name, stations:s.stations.slice(), total:s.total, subFor:s.subFor||null})) } };
     body.innerHTML = `
+      <div class="field"><label>Team</label><select id="adminRoundTeam-${id}">${(state.teams||[]).map(t=>`<option value="${t.id}" ${t.id===detail.teamId?'selected':''}>${escapeHtml(t.name)}</option>`).join('')}</select></div>
       <div class="field"><label>Round date</label><input type="date" id="adminRoundDate-${id}" value="${detail.date}"/></div>
       <div class="field"><label>Round #</label><input type="number" min="1" max="9" id="adminRoundNumber-${id}" value="${detail.roundNumber||1}"/></div>
       <div class="field"><label>Yardage</label><input type="number" min="16" max="27" id="adminRoundYardage-${id}" value="${detail.yardage!=null?detail.yardage:''}"/></div>
+      <div class="note" style="margin-top:0">Changing the team moves this round and re-matches shooter names against that team's roster.</div>
       <div style="overflow-x:auto">
         <table class="tbl">
           <thead><tr><th style="min-width:120px">Shooter</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>Total</th><th style="min-width:120px">Subbing for</th><th></th></tr></thead>
@@ -1114,10 +1174,10 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     const tbody = $('#adminRoundTableBody-'+id);
     tbody.innerHTML = draft.shooters.map((s,idx)=>`
       <tr>
-        <td><input class="name-input" value="${escapeAttr(s.name)}" oninput="window.__tscAdminUpdateField(${id},${idx},this.value)"/></td>
+        <td><input class="name-input" list="adminShooterNames" value="${escapeAttr(s.name)}" oninput="window.__tscAdminUpdateField(${id},${idx},this.value)"/></td>
         ${[0,1,2,3,4].map(si=>`<td class="station-cell"><input type="number" min="0" max="5" value="${s.stations[si]!=null?s.stations[si]:''}" oninput="window.__tscAdminUpdateStation(${id},${idx},${si},this.value)"/></td>`).join('')}
         <td class="total-cell" id="adminRoundTotal-${id}-${idx}">${s.total!=null?s.total:'—'}</td>
-        <td><input class="name-input" placeholder="—" value="${escapeAttr(s.subFor||'')}" oninput="window.__tscAdminUpdateSubFor(${id},${idx},this.value)"/></td>
+        <td><input class="name-input" list="adminShooterNames" placeholder="—" value="${escapeAttr(s.subFor||'')}" oninput="window.__tscAdminUpdateSubFor(${id},${idx},this.value)"/></td>
         <td><button class="rm" onclick="window.__tscAdminRemoveRow(${id},${idx})">✕</button></td>
       </tr>`).join('');
   }
@@ -1152,12 +1212,13 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     const yardage = yardageVal===''? null : Number(yardageVal);
     const roundNumberVal = $('#adminRoundNumber-'+id).value;
     const roundNumber = roundNumberVal===''? 1 : Number(roundNumberVal);
+    const teamId = Number($('#adminRoundTeam-'+id).value);
     const shooters = draft.shooters.filter(s=>s.name && s.name.trim()).map(s=>({name:s.name.trim(), stations:s.stations, total:s.total, subFor: s.subFor && s.subFor.trim() ? s.subFor.trim() : null}));
     const errEl = $('#adminRoundError-'+id);
     errEl.style.display='none';
     if(!date){ errEl.textContent='A round date is required.'; errEl.style.display='block'; return; }
     try{
-      await api('/admin/rounds/'+id, {method:'PUT', body: JSON.stringify({date, yardage, roundNumber, shooters})});
+      await api('/admin/rounds/'+id, {method:'PUT', body: JSON.stringify({date, yardage, roundNumber, teamId, shooters})});
       loadAdminPanel();
     }catch(e){ errEl.textContent = e.message; errEl.style.display='block'; }
   };

@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
   name TEXT,
+  phone TEXT,
+  address TEXT,
   is_admin BOOLEAN NOT NULL DEFAULT false,
   team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()

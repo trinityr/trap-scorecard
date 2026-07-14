@@ -13,15 +13,21 @@ function autoTotal(stations: (number | null)[] | undefined): number | null {
   return nums.reduce((a, b) => a + b, 0);
 }
 
-// POST /api/rounds - save a week's scoresheet for the signed-in user's team
+// POST /api/rounds - save a week's scoresheet for the signed-in user's team.
+// Admins may pass a teamId to log a round for a different team than their
+// own (e.g. entering a scoresheet on behalf of another squad) — that
+// override is ignored for non-admins, who are always locked to their own
+// session team regardless of what's in the request body.
 router.post("/", async (req: Request, res: Response) => {
-  const teamId = req.session.user!.teamId;
+  const isAdmin = req.session.user!.isAdmin;
   const body = req.body as {
     date?: string;
     yardage?: number | string | null;
     roundNumber?: number | string | null;
+    teamId?: number | string | null;
     shooters?: ShooterScore[];
   };
+  const teamId = isAdmin && body.teamId ? Number(body.teamId) : req.session.user!.teamId;
 
   if (!teamId) {
     return res.status(400).json({ error: "Your account isn't attached to a team." });
