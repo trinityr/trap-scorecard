@@ -16,7 +16,12 @@ function autoTotal(stations: (number | null)[] | undefined): number | null {
 // POST /api/rounds - save a week's scoresheet for the signed-in user's team
 router.post("/", async (req: Request, res: Response) => {
   const teamId = req.session.user!.teamId;
-  const body = req.body as { date?: string; yardage?: number | string | null; shooters?: ShooterScore[] };
+  const body = req.body as {
+    date?: string;
+    yardage?: number | string | null;
+    roundNumber?: number | string | null;
+    shooters?: ShooterScore[];
+  };
 
   if (!teamId) {
     return res.status(400).json({ error: "Your account isn't attached to a team." });
@@ -25,6 +30,7 @@ router.post("/", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "Request needs a date and at least one shooter." });
   }
   const yardage = body.yardage != null && body.yardage !== "" ? Number(body.yardage) : null;
+  const roundNumber = body.roundNumber != null && body.roundNumber !== "" ? Number(body.roundNumber) : 1;
 
   let client;
   try {
@@ -32,8 +38,8 @@ router.post("/", async (req: Request, res: Response) => {
     await client.query("BEGIN");
 
     const roundResult = await client.query(
-      "INSERT INTO rounds (team_id, round_date, yardage) VALUES ($1, $2, $3) RETURNING id",
-      [teamId, body.date, yardage]
+      "INSERT INTO rounds (team_id, round_date, yardage, round_number) VALUES ($1, $2, $3, $4) RETURNING id",
+      [teamId, body.date, yardage, roundNumber]
     );
     const roundId = roundResult.rows[0].id;
 
@@ -52,11 +58,26 @@ router.post("/", async (req: Request, res: Response) => {
       );
       const shooterId = shooterResult.rows[0].id;
 
+      // If this shooter subbed for a team member, resolve (or create) that
+      // member's own roster row so the substitution can be rolled into
+      // their Team Leaderboard line later. A shooter can't sub for themself.
+      let subForShooterId: number | null = null;
+      const subForName = shooter.subFor?.trim();
+      if (subForName && subForName.toLowerCase() !== name.toLowerCase()) {
+        const subResult = await client.query(
+          `INSERT INTO shooters (team_id, name) VALUES ($1, $2)
+           ON CONFLICT (team_id, name) DO UPDATE SET name = EXCLUDED.name
+           RETURNING id`,
+          [teamId, subForName]
+        );
+        subForShooterId = subResult.rows[0].id;
+      }
+
       const stations = shooter.stations ?? [null, null, null, null, null];
       await client.query(
-        `INSERT INTO scores (round_id, shooter_id, station_1, station_2, station_3, station_4, station_5, total)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-        [roundId, shooterId, stations[0], stations[1], stations[2], stations[3], stations[4], total]
+        `INSERT INTO scores (round_id, shooter_id, sub_for_shooter_id, station_1, station_2, station_3, station_4, station_5, total)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [roundId, shooterId, subForShooterId, stations[0], stations[1], stations[2], stations[3], stations[4], total]
       );
     }
 
@@ -84,14 +105,15 @@ router.get("/", async (req: Request, res: Response) => {
 
   try {
     const rounds = await pool.query(
-      "SELECT id, round_date, yardage FROM rounds WHERE team_id = $1 ORDER BY round_date DESC",
+      "SELECT id, round_date, yardage, round_number FROM rounds WHERE team_id = $1 ORDER BY round_date DESC, round_number DESC",
       [teamId]
     );
 
     const scores = await pool.query(
-      `SELECT s.round_id, sh.name, s.station_1, s.station_2, s.station_3, s.station_4, s.station_5, s.total
+      `SELECT s.round_id, sh.name, s.station_1, s.station_2, s.station_3, s.station_4, s.station_5, s.total, subsh.name AS sub_for_name
        FROM scores s
        JOIN shooters sh ON sh.id = s.shooter_id
+       LEFT JOIN shooters subsh ON subsh.id = s.sub_for_shooter_id
        JOIN rounds r ON r.id = s.round_id
        WHERE r.team_id = $1`,
       [teamId]
@@ -104,6 +126,7 @@ router.get("/", async (req: Request, res: Response) => {
         name: row.name,
         stations: [row.station_1, row.station_2, row.station_3, row.station_4, row.station_5],
         total: row.total,
+        subFor: row.sub_for_name || null,
       });
     }
 
@@ -112,6 +135,7 @@ router.get("/", async (req: Request, res: Response) => {
         id: r.id,
         date: r.round_date,
         yardage: r.yardage,
+        roundNumber: r.round_number,
         shooters: byRound[r.id] || [],
       }))
     );

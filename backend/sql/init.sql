@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS rounds (
   id SERIAL PRIMARY KEY,
   team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
   round_date DATE NOT NULL,
+  round_number SMALLINT NOT NULL DEFAULT 1,
   yardage SMALLINT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -60,6 +61,11 @@ CREATE TABLE IF NOT EXISTS scores (
   id SERIAL PRIMARY KEY,
   round_id INTEGER NOT NULL REFERENCES rounds(id) ON DELETE CASCADE,
   shooter_id INTEGER NOT NULL REFERENCES shooters(id) ON DELETE CASCADE,
+  -- Set when shooter_id shot as a substitute filling in for another team
+  -- member that night. The sub's own score row (and thus their individual
+  -- stats/trends/drilldown) always stays attributed to shooter_id; only the
+  -- Team Leaderboard rolls this score into sub_for_shooter_id's line.
+  sub_for_shooter_id INTEGER REFERENCES shooters(id) ON DELETE SET NULL,
   station_1 SMALLINT,
   station_2 SMALLINT,
   station_3 SMALLINT,
@@ -73,4 +79,5 @@ CREATE INDEX IF NOT EXISTS idx_rounds_team ON rounds(team_id);
 CREATE INDEX IF NOT EXISTS idx_users_team ON users(team_id);
 CREATE INDEX IF NOT EXISTS idx_scores_round ON scores(round_id);
 CREATE INDEX IF NOT EXISTS idx_scores_shooter ON scores(shooter_id);
+CREATE INDEX IF NOT EXISTS idx_scores_sub_for ON scores(sub_for_shooter_id);
 CREATE INDEX IF NOT EXISTS idx_rounds_date ON rounds(round_date);

@@ -21,6 +21,8 @@ backend/
     002_add_auth.sql        <- run manually against an existing database to add user accounts
     003_add_user_name.sql   <- run manually to add the optional display-name column to users
     004_add_yardage.sql     <- run manually to add the yardage column to rounds
+    005_add_round_number.sql <- run manually to add the round-number column to rounds
+    006_add_substitutes.sql <- run manually to add substitute tracking to scores
   public/
     index.html              <- the scorecard web app: sign-in/register + admin panel + scoring UI
   src/
@@ -141,12 +143,14 @@ if you changed them). It only adds the new tables — nothing you've already
 entered is touched. After that, everyone just registers as normal; the
 first person to do so becomes admin.
 
-**If you already had accounts before the Profile tab or yardage were
-added**, run these two migrations once against your existing database
-(both are additive — nothing existing is touched):
+**If you already had accounts before the Profile tab, yardage, round
+numbers, or substitutes were added**, run these migrations once against
+your existing database (all are additive — nothing existing is touched):
 ```bash
 docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migrations/003_add_user_name.sql
 docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migrations/004_add_yardage.sql
+docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migrations/005_add_round_number.sql
+docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migrations/006_add_substitutes.sql
 ```
 
 ## Teams
@@ -163,6 +167,33 @@ docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migratio
 ```
 This is very unlikely to apply to you if you're adopting both changes at
 once — the auth migration above assumes teams already exist.
+
+## Rounds, substitutes, and drilldown
+
+Clubs that shoot more than one round a night can set a **Round #** on each
+entry in New Round (auto-suggested from how many rounds already exist for
+that date, but editable) — it shows up in History and the Admin round
+list/editor.
+
+If someone filled in for a regular team member, put that member's name in
+the **Subbing for** field next to the sub's row. This keeps two things true
+at once:
+- The sub's own score stays under their own name for individual purposes —
+  their Trends line, their entry in the round history, and their
+  **drilldown** page.
+- On the **Team Leaderboard** (and the Dashboard's condensed team board)
+  only, that score is rolled into the line of the team member they subbed
+  for, so the team's roster average reflects a full squad even when someone
+  was out. The subbed-for member's row shows a "(N subbed)" note when this
+  has happened.
+
+Site-wide stats, Trends, and drilldown never roll substitutions up — they
+always reflect who actually pulled the trigger that round.
+
+Click any name in the Leaderboard or the Dashboard's team board to open
+their **drilldown**: rounds shot, average, best round, station-by-station
+accuracy, a trend chart, and a full round-by-round history (each row
+tagged if it was shot as a substitute for someone else).
 
 ## Dashboard
 
@@ -193,15 +224,16 @@ below each.
 - `PUT /api/admin/shooters/:id` — admin only, body: `{ "name"?, "teamId"? }` — rename and/or reassign team
 - `DELETE /api/admin/shooters/:id` — admin only, also deletes that shooter's score history
 - `GET /api/admin/rounds` — admin only, every round across every team
-- `GET /api/admin/rounds/:id` — admin only, full shooter/score detail for one round
-- `PUT /api/admin/rounds/:id` — admin only, body: `{ "date", "yardage", "shooters": [...] }` — replaces the round's date/yardage/scores (team is fixed)
+- `GET /api/admin/rounds/:id` — admin only, full shooter/score detail for one round, including who subbed for whom
+- `PUT /api/admin/rounds/:id` — admin only, body: `{ "date", "yardage", "roundNumber", "shooters": [{ "name", "stations", "total", "subFor"? }] }` — replaces the round's date/round number/yardage/scores (team is fixed)
 - `DELETE /api/admin/rounds/:id` — admin only, deletes any round regardless of team
 - `GET /api/teams` — list all teams (public, used by the registration form)
-- `POST /api/rounds` — body: `{ "date": "YYYY-MM-DD", "yardage": n or null, "shooters": [{ "name", "stations": [n,n,n,n,n], "total": n }] }` — requires sign-in, scoped to your team automatically
-- `GET /api/rounds` — every saved round for your team — requires sign-in
+- `POST /api/rounds` — body: `{ "date": "YYYY-MM-DD", "yardage": n or null, "roundNumber": n (default 1), "shooters": [{ "name", "stations": [n,n,n,n,n], "total": n, "subFor": "team member's name" or null }] }` — requires sign-in, scoped to your team automatically
+- `GET /api/rounds` — every saved round for your team, each shooter entry includes `subFor` if they were subbing — requires sign-in
 - `DELETE /api/rounds/:id` — requires sign-in, only deletes rounds belonging to your own team
-- `GET /api/stats/leaderboard` / `GET /api/stats/trends` — requires sign-in, scoped to your team
-- `GET /api/site/leaderboard` — requires sign-in, cross-team scoreboard: `{ individuals: [...], teams: [...] }`, each ranked by total combined score, top 10
+- `GET /api/stats/leaderboard` — requires sign-in, scoped to your team, **rolls substitute scores into the team member they subbed for**
+- `GET /api/stats/trends` — requires sign-in, scoped to your team, per actual shooter (never rolled up)
+- `GET /api/site/leaderboard` — requires sign-in, cross-team scoreboard: `{ individuals: [...], teams: [...] }`, each ranked by total combined score, top 10, never rolled up
 - `POST /api/extract` — body: `{ "image": "<base64, no data: prefix>" }` — requires sign-in, returns parsed `{date, yardage, shooters}` read from the photo
 
 ## Local development without Docker

@@ -267,12 +267,12 @@ router.delete("/shooters/:id", async (req: Request, res: Response) => {
 router.get("/rounds", async (_req: Request, res: Response) => {
   try {
     const result = await pool.query(`
-      SELECT r.id, r.team_id, t.name AS team_name, r.round_date, r.yardage, COUNT(s.id)::int AS shooter_count
+      SELECT r.id, r.team_id, t.name AS team_name, r.round_date, r.round_number, r.yardage, COUNT(s.id)::int AS shooter_count
       FROM rounds r
       JOIN teams t ON t.id = r.team_id
       LEFT JOIN scores s ON s.round_id = r.id
-      GROUP BY r.id, r.team_id, t.name, r.round_date, r.yardage
-      ORDER BY r.round_date DESC, r.id DESC
+      GROUP BY r.id, r.team_id, t.name, r.round_date, r.round_number, r.yardage
+      ORDER BY r.round_date DESC, r.round_number DESC, r.id DESC
     `);
     res.json(result.rows);
   } catch (err) {
@@ -285,7 +285,7 @@ router.get("/rounds", async (_req: Request, res: Response) => {
 router.get("/rounds/:id", async (req: Request, res: Response) => {
   try {
     const roundResult = await pool.query(
-      `SELECT r.id, r.team_id, t.name AS team_name, r.round_date, r.yardage
+      `SELECT r.id, r.team_id, t.name AS team_name, r.round_date, r.round_number, r.yardage
        FROM rounds r JOIN teams t ON t.id = r.team_id WHERE r.id = $1`,
       [req.params.id]
     );
@@ -294,8 +294,10 @@ router.get("/rounds/:id", async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Round not found." });
     }
     const scores = await pool.query(
-      `SELECT sh.id AS shooter_id, sh.name, s.station_1, s.station_2, s.station_3, s.station_4, s.station_5, s.total
-       FROM scores s JOIN shooters sh ON sh.id = s.shooter_id
+      `SELECT sh.id AS shooter_id, sh.name, s.station_1, s.station_2, s.station_3, s.station_4, s.station_5, s.total, subsh.name AS sub_for_name
+       FROM scores s
+       JOIN shooters sh ON sh.id = s.shooter_id
+       LEFT JOIN shooters subsh ON subsh.id = s.sub_for_shooter_id
        WHERE s.round_id = $1 ORDER BY sh.name ASC`,
       [req.params.id]
     );
@@ -304,12 +306,14 @@ router.get("/rounds/:id", async (req: Request, res: Response) => {
       teamId: round.team_id,
       teamName: round.team_name,
       date: round.round_date,
+      roundNumber: round.round_number,
       yardage: round.yardage,
       shooters: scores.rows.map((row) => ({
         shooterId: row.shooter_id,
         name: row.name,
         stations: [row.station_1, row.station_2, row.station_3, row.station_4, row.station_5],
         total: row.total,
+        subFor: row.sub_for_name || null,
       })),
     });
   } catch (err) {
@@ -318,17 +322,18 @@ router.get("/rounds/:id", async (req: Request, res: Response) => {
   }
 });
 
-// PUT /api/admin/rounds/:id - replace a round's date, yardage, and full set
-// of shooter scores. The round's team is fixed (not editable here) — every
-// shooter listed is upserted against that team's roster the same way a
-// normal round save works, then all old score rows for the round are
-// replaced with the new set.
+// PUT /api/admin/rounds/:id - replace a round's date, round number, yardage,
+// and full set of shooter scores (including who subbed for whom). The
+// round's team is fixed (not editable here) — every shooter listed is
+// upserted against that team's roster the same way a normal round save
+// works, then all old score rows for the round are replaced with the new set.
 router.put("/rounds/:id", async (req: Request, res: Response) => {
-  const { date, yardage, shooters } = req.body || {};
+  const { date, yardage, roundNumber, shooters } = req.body || {};
   if (!date || !Array.isArray(shooters)) {
     return res.status(400).json({ error: "Request needs a date and a shooters array." });
   }
   const cleanYardage = yardage != null && yardage !== "" ? Number(yardage) : null;
+  const cleanRoundNumber = roundNumber != null && roundNumber !== "" ? Number(roundNumber) : 1;
 
   let client;
   try {
@@ -342,7 +347,12 @@ router.put("/rounds/:id", async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Round not found." });
     }
 
-    await client.query("UPDATE rounds SET round_date = $1, yardage = $2 WHERE id = $3", [date, cleanYardage, req.params.id]);
+    await client.query("UPDATE rounds SET round_date = $1, yardage = $2, round_number = $3 WHERE id = $4", [
+      date,
+      cleanYardage,
+      cleanRoundNumber,
+      req.params.id,
+    ]);
     await client.query("DELETE FROM scores WHERE round_id = $1", [req.params.id]);
 
     for (const shooter of shooters) {
@@ -361,10 +371,22 @@ router.put("/rounds/:id", async (req: Request, res: Response) => {
       );
       const shooterId = shooterResult.rows[0].id;
 
+      let subForShooterId: number | null = null;
+      const subForName = String(shooter?.subFor || "").trim();
+      if (subForName && subForName.toLowerCase() !== name.toLowerCase()) {
+        const subResult = await client.query(
+          `INSERT INTO shooters (team_id, name) VALUES ($1, $2)
+           ON CONFLICT (team_id, name) DO UPDATE SET name = EXCLUDED.name
+           RETURNING id`,
+          [teamId, subForName]
+        );
+        subForShooterId = subResult.rows[0].id;
+      }
+
       await client.query(
-        `INSERT INTO scores (round_id, shooter_id, station_1, station_2, station_3, station_4, station_5, total)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-        [req.params.id, shooterId, stations[0], stations[1], stations[2], stations[3], stations[4], total]
+        `INSERT INTO scores (round_id, shooter_id, sub_for_shooter_id, station_1, station_2, station_3, station_4, station_5, total)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [req.params.id, shooterId, subForShooterId, stations[0], stations[1], stations[2], stations[3], stations[4], total]
       );
     }
 
