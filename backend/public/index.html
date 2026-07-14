@@ -137,6 +137,12 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
 .center-wrap{max-width:380px;margin:40px auto;padding:0 16px;}
 .theme-toggle{position:fixed;top:12px;right:12px;z-index:50;background:var(--bg-panel-raised);border:1px solid var(--line);color:var(--text-primary);width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;padding:0;}
 .theme-toggle:hover{border-color:var(--accent-brass);}
+.subtabs{display:flex;gap:2px;margin-bottom:16px;border-bottom:1px solid var(--line);overflow-x:auto;}
+.subtab{background:none;border:none;color:var(--text-muted);font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.06em;font-size:12px;padding:8px 14px;cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;}
+.subtab.active{color:var(--text-primary);border-bottom-color:var(--accent-clay);}
+.subtab:hover{color:var(--text-primary);}
+.subpanel{display:none;}
+.subpanel.active{display:block;animation:fade .2s ease;}
 @media(max-width:520px){main{padding:16px 12px;} .lb-avg{width:54px;font-size:15px;}}
 </style>
 </head>
@@ -204,10 +210,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
 <div id="appShell" style="display:none">
 <div class="tabs" id="tabsBar">
   <button class="tab active" data-tab="dashboard">Dashboard</button>
-  <button class="tab" data-tab="new">New Round</button>
-  <button class="tab" data-tab="board">Leaderboard</button>
-  <button class="tab" data-tab="trends">Trends</button>
-  <button class="tab" data-tab="history">History</button>
+  <button class="tab" data-tab="team">Team</button>
   <button class="tab" data-tab="league">League</button>
   <button class="tab" data-tab="profile">Profile</button>
 </div>
@@ -229,6 +232,11 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
       <div id="dashboardTeamBoard"></div>
       <div class="row-actions"><button class="btn ghost small" id="dashboardViewFullBoard">View full leaderboard</button></div>
     </div>
+    <div class="card" id="dashboardTeamTrendsCard">
+      <h3>Team Trends</h3>
+      <div class="legend" id="dashTeamTrendLegend"></div>
+      <div id="dashTeamTrendChart"></div>
+    </div>
     <div class="card">
       <h3>Site-wide scoreboard</h3>
       <div class="note" style="margin-top:0;margin-bottom:12px">Ranked by total combined score across every round ever logged, across all teams.</div>
@@ -244,66 +252,11 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
         </div>
       </div>
     </div>
-  </section>
-
-  <section class="panel" id="panel-new">
-    <div class="card" id="adminTeamPickerCard" style="display:none">
-      <h3>Team</h3>
-      <div class="field"><label>Entering scores for</label><select id="draftTeamSelect"></select></div>
-      <div class="note" style="margin-top:0">As an admin, you can log a round for any team.</div>
-    </div>
     <div class="card">
-      <h3>1 — Upload the sheet</h3>
-      <label class="upload" id="uploadZone">
-        <input type="file" accept="image/*" id="fileInput"/>
-        <div id="uploadLabel">Tap to choose a photo of this week's scoresheet</div>
-        <div class="hint">JPG or PNG, handwritten is fine</div>
-        <img id="previewImg" class="preview" style="display:none"/>
-      </label>
-      <div class="row-actions">
-        <button class="btn" id="extractBtn" disabled>Read scoresheet</button>
-        <button class="btn ghost" id="manualBtn">Skip photo — enter manually</button>
-      </div>
-      <div class="error" id="extractError"></div>
+      <h3>Site Trends</h3>
+      <div class="note" style="margin-top:0;margin-bottom:12px">Average score across every team, per round date.</div>
+      <div id="dashSiteTrendChart"></div>
     </div>
-
-    <div class="card" id="draftCard" style="display:none">
-      <h3>2 — Check the numbers</h3>
-      <div class="field">
-        <label>Round date</label>
-        <input type="date" id="draftDate"/>
-      </div>
-      <div class="field">
-        <label>Yardage</label>
-        <input type="number" min="16" max="27" id="draftYardage" placeholder="e.g. 16"/>
-      </div>
-      <div style="overflow-x:auto">
-        <table class="tbl" id="draftTable">
-          <thead>
-            <tr><th style="min-width:120px">Shooter</th><th>Rnd</th><th>Sta 1</th><th>Sta 2</th><th>Sta 3</th><th>Sta 4</th><th>Sta 5</th><th>Total</th><th style="min-width:120px">Subbing for</th><th></th></tr>
-          </thead>
-          <tbody id="draftBody"></tbody>
-        </table>
-      </div>
-      <div class="row-actions">
-        <button class="btn ghost small" id="addRowBtn">+ Add shooter</button>
-        <button class="btn" id="saveWeekBtn">Save this round</button>
-      </div>
-      <div class="note">Stations are out of 5 birds each (25 total) for a standard singles round. Leave stations blank and just fill Total if your sheet is different. If your club shoots multiple rounds a night and one photo or entry session covers more than one, use the "Rnd" column to mark which round each row belongs to — rows get split into separate round records automatically. If someone filled in for a regular team member, put that member's name in "Subbing for" — the sub's own stats stay separate, but their score counts toward that member's line on the Team Leaderboard.</div>
-      <div class="toast" id="saveToast">Saved.</div>
-    </div>
-  </section>
-
-  <section class="panel" id="panel-board">
-    <div class="card"><h3>Team Leaderboard</h3><div id="leaderboardBody"></div></div>
-  </section>
-
-  <section class="panel" id="panel-trends">
-    <div class="card"><h3>Score Trends</h3><div class="legend" id="trendLegend"></div><div id="trendChart"></div></div>
-  </section>
-
-  <section class="panel" id="panel-history">
-    <div class="card"><h3>Past Rounds</h3><div id="historyBody"></div></div>
   </section>
 
   <section class="panel" id="panel-shooter">
@@ -341,20 +294,90 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
   </section>
 
   <section class="panel" id="panel-team">
-    <div class="card" id="teamLogoCard">
-      <h3>Team logo</h3>
-      <div class="note" style="margin-top:0">Shown as a background behind your team's boxes on the site-wide scoreboard when your team or one of your shooters is leading.</div>
-      <img id="teamLogoPreview" style="max-width:140px;max-height:140px;display:none;border-radius:8px;margin-bottom:10px;object-fit:cover;"/>
-      <div class="row-actions" style="margin-top:0">
-        <label class="btn ghost small" style="cursor:pointer">Upload logo<input type="file" accept="image/*" id="teamLogoInput" style="display:none"/></label>
-        <button class="btn danger small" id="teamLogoRemoveBtn" style="display:none">Remove logo</button>
-      </div>
-      <div class="error" id="teamLogoError"></div>
+    <div class="subtabs" id="teamSubTabsBar">
+      <button class="subtab active" data-teamtab="teamdash">Team Dashboard</button>
+      <button class="subtab" data-teamtab="new">New Round</button>
+      <button class="subtab" data-teamtab="history">History</button>
+      <button class="subtab" id="teamAdminSubTabBtn" data-teamtab="admin" style="display:none">Team Admin</button>
     </div>
-    <div class="card">
-      <h3>Pending team requests</h3>
-      <div class="note" style="margin-top:0">People who picked your team but still need approval from a Squad Leader or admin.</div>
-      <div id="teamPendingBody"></div>
+
+    <div class="subpanel active" id="teamsub-teamdash">
+      <div class="card">
+        <h3 id="teamDashHeading">Team stats</h3>
+        <div class="metric-grid" id="teamDashMetrics"></div>
+      </div>
+      <div class="card"><h3>Team Leaderboard</h3><div id="leaderboardBody"></div></div>
+      <div class="card"><h3>Team Trends</h3><div class="legend" id="trendLegend"></div><div id="trendChart"></div></div>
+    </div>
+
+    <div class="subpanel" id="teamsub-new">
+      <div class="card" id="adminTeamPickerCard" style="display:none">
+        <h3>Team</h3>
+        <div class="field"><label>Entering scores for</label><select id="draftTeamSelect"></select></div>
+        <div class="note" style="margin-top:0">As an admin, you can log a round for any team.</div>
+      </div>
+      <div class="card">
+        <h3>1 — Upload the sheet</h3>
+        <label class="upload" id="uploadZone">
+          <input type="file" accept="image/*" id="fileInput"/>
+          <div id="uploadLabel">Tap to choose a photo of this week's scoresheet</div>
+          <div class="hint">JPG or PNG, handwritten is fine</div>
+          <img id="previewImg" class="preview" style="display:none"/>
+        </label>
+        <div class="row-actions">
+          <button class="btn" id="extractBtn" disabled>Read scoresheet</button>
+          <button class="btn ghost" id="manualBtn">Skip photo — enter manually</button>
+        </div>
+        <div class="error" id="extractError"></div>
+      </div>
+
+      <div class="card" id="draftCard" style="display:none">
+        <h3>2 — Check the numbers</h3>
+        <div class="field">
+          <label>Round date</label>
+          <input type="date" id="draftDate"/>
+        </div>
+        <div class="field">
+          <label>Yardage</label>
+          <input type="number" min="16" max="27" id="draftYardage" placeholder="e.g. 16"/>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="tbl" id="draftTable">
+            <thead>
+              <tr><th style="min-width:120px">Shooter</th><th>Rnd</th><th>Sta 1</th><th>Sta 2</th><th>Sta 3</th><th>Sta 4</th><th>Sta 5</th><th>Total</th><th style="min-width:120px">Subbing for</th><th></th></tr>
+            </thead>
+            <tbody id="draftBody"></tbody>
+          </table>
+        </div>
+        <div class="row-actions">
+          <button class="btn ghost small" id="addRowBtn">+ Add shooter</button>
+          <button class="btn" id="saveWeekBtn">Save this round</button>
+        </div>
+        <div class="note">Stations are out of 5 birds each (25 total) for a standard singles round. Leave stations blank and just fill Total if your sheet is different. If your club shoots multiple rounds a night and one photo or entry session covers more than one, use the "Rnd" column to mark which round each row belongs to — rows get split into separate round records automatically. If someone filled in for a regular team member, put that member's name in "Subbing for" — the sub's own stats stay separate, but their score counts toward that member's line on the Team Leaderboard.</div>
+        <div class="toast" id="saveToast">Saved.</div>
+      </div>
+    </div>
+
+    <div class="subpanel" id="teamsub-history">
+      <div class="card"><h3>Past Rounds</h3><div id="historyBody"></div></div>
+    </div>
+
+    <div class="subpanel" id="teamsub-admin">
+      <div class="card" id="teamLogoCard">
+        <h3>Team logo</h3>
+        <div class="note" style="margin-top:0">Shown as a background behind your team's boxes on the site-wide scoreboard when your team or one of your shooters is leading.</div>
+        <img id="teamLogoPreview" style="max-width:140px;max-height:140px;display:none;border-radius:8px;margin-bottom:10px;object-fit:cover;"/>
+        <div class="row-actions" style="margin-top:0">
+          <label class="btn ghost small" style="cursor:pointer">Upload logo<input type="file" accept="image/*" id="teamLogoInput" style="display:none"/></label>
+          <button class="btn danger small" id="teamLogoRemoveBtn" style="display:none">Remove logo</button>
+        </div>
+        <div class="error" id="teamLogoError"></div>
+      </div>
+      <div class="card">
+        <h3>Pending team requests</h3>
+        <div class="note" style="margin-top:0">People who picked your team but still need approval from a Squad Leader or admin.</div>
+        <div id="teamPendingBody"></div>
+      </div>
     </div>
   </section>
 
@@ -646,7 +669,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     hideAllTopLevelScreens();
     renderSessionBar();
     renderAdminTabVisibility();
-    renderTeamTabVisibility();
+    renderTeamAdminSubTabVisibility();
     renderJoinTeamTabVisibility();
     renderTabVisibilityForTeamStatus();
     setupAdminTeamPicker();
@@ -655,13 +678,13 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
   }
 
   // A team is required for stat tracking (New Round, Leaderboard, Trends,
-  // History all 403 server-side without one, via requireApprovedTeam) — so
-  // those tabs are hidden entirely for a teamless (view-only) user rather
-  // than shown and erroring. Dashboard, League, Profile, and Join a Team
-  // stay visible either way.
+  // History all 403 server-side without one, via requireApprovedTeam) — all
+  // of those now live under the single Team tab, so that whole tab is
+  // hidden for a teamless (view-only) user rather than shown and erroring.
+  // Dashboard, League, Profile, and Join a Team stay visible either way.
   function renderTabVisibilityForTeamStatus(){
     const hasTeam = Boolean(state.user.teamId);
-    ['new','board','trends','history'].forEach(tab=>{
+    ['team'].forEach(tab=>{
       const btn = document.querySelector('.tab[data-tab="'+tab+'"]');
       if(btn) btn.style.display = hasTeam ? '' : 'none';
     });
@@ -717,17 +740,13 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     bindTabButton(btn);
   }
 
-  // Squad Leaders (and admins, for convenience) get a "Team" tab for
-  // approving pending join requests to their own team.
-  function renderTeamTabVisibility(){
-    if(!state.user.isSquadLeader && !state.user.isAdmin) return;
-    if(document.querySelector('.tab[data-tab="team"]')) return;
-    const btn = document.createElement('button');
-    btn.className = 'tab'; btn.dataset.tab = 'team'; btn.textContent = 'Team';
-    const adminBtn = document.querySelector('.tab[data-tab="admin"]');
-    if(adminBtn) $('#tabsBar').insertBefore(btn, adminBtn);
-    else $('#tabsBar').appendChild(btn);
-    bindTabButton(btn);
+  // Squad Leaders (and admins, for convenience) get an extra "Team Admin"
+  // sub-tab inside the Team tab, for approving pending join requests and
+  // managing the team logo. Everyone else on the team only sees Team
+  // Dashboard / New Round / History.
+  function renderTeamAdminSubTabVisibility(){
+    const btn = $('#teamAdminSubTabBtn');
+    if(btn) btn.style.display = (state.user.isSquadLeader || state.user.isAdmin) ? '' : 'none';
   }
 
   function bindTabButton(btn){
@@ -740,11 +759,8 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
       // drilldown page overrides this, in openShooterDrilldown).
       renderFieldArc();
       if(btn.dataset.tab==='dashboard') renderDashboard();
-      if(btn.dataset.tab==='board') renderLeaderboard();
-      if(btn.dataset.tab==='trends') renderTrends();
-      if(btn.dataset.tab==='history') renderHistory();
       if(btn.dataset.tab==='profile') loadProfilePanel();
-      if(btn.dataset.tab==='team') loadTeamPanel();
+      if(btn.dataset.tab==='team') enterTeamTab();
       if(btn.dataset.tab==='league') loadLeaguePanel();
       if(btn.dataset.tab==='join') loadJoinTeamPanel();
       if(btn.dataset.tab==='admin') loadAdminPanel();
@@ -752,8 +768,33 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
   }
   document.querySelectorAll('.tab').forEach(bindTabButton);
 
+  // ---------- Team tab sub-navigation ----------
+  // New Round, History, Leaderboard, and Trends all live inside the Team
+  // tab now (as Team Dashboard / New Round / History / Team Admin
+  // sub-tabs) instead of being separate top-level tabs.
+  function bindTeamSubTabButton(btn){
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('#teamSubTabsBar .subtab').forEach(b=>b.classList.toggle('active', b===btn));
+      document.querySelectorAll('#panel-team .subpanel').forEach(p=>p.classList.toggle('active', p.id === 'teamsub-'+btn.dataset.teamtab));
+      if(btn.dataset.teamtab==='teamdash') loadTeamDashboardSubPanel();
+      if(btn.dataset.teamtab==='history') renderHistory();
+      if(btn.dataset.teamtab==='admin') loadTeamAdminSubPanel();
+    });
+  }
+  document.querySelectorAll('#teamSubTabsBar .subtab').forEach(bindTeamSubTabButton);
+
+  // Entering the Team tab always lands back on its Team Dashboard sub-tab —
+  // the simplest way to keep the sub-tab/sub-panel state in sync no matter
+  // which sub-tab was open last time.
+  function enterTeamTab(){
+    const defaultBtn = document.querySelector('#teamSubTabsBar .subtab[data-teamtab="teamdash"]');
+    document.querySelectorAll('#teamSubTabsBar .subtab').forEach(b=>b.classList.toggle('active', b===defaultBtn));
+    document.querySelectorAll('#panel-team .subpanel').forEach(p=>p.classList.toggle('active', p.id === 'teamsub-teamdash'));
+    loadTeamDashboardSubPanel();
+  }
+
   $('#dashboardViewFullBoard').addEventListener('click', ()=>{
-    document.querySelector('.tab[data-tab="board"]').click();
+    document.querySelector('.tab[data-tab="team"]').click();
   });
 
   async function startApp(){
@@ -1055,15 +1096,35 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     });
   }
 
+  // Shared team-stat metrics markup — used both by the main Dashboard's
+  // team card and by the Team Dashboard sub-tab under Team.
+  function teamMetricsHtml(){
+    const agg = aggregate({rollup:true}).filter(r=>r.rounds>0);
+    const totalRounds = state.weeks.length;
+    const allTotals = agg.flatMap(r=>r.totals);
+    const teamAvg = allTotals.length ? (allTotals.reduce((a,b)=>a+b,0)/allTotals.length) : null;
+    const bestEver = allTotals.length ? Math.max(...allTotals) : null;
+    return `
+      <div class="metric"><div class="label">Rounds logged</div><div class="value">${totalRounds}</div></div>
+      <div class="metric"><div class="label">Active shooters</div><div class="value">${agg.length}</div></div>
+      <div class="metric"><div class="label">Team average</div><div class="value">${teamAvg!=null?teamAvg.toFixed(1):'—'}</div></div>
+      <div class="metric"><div class="label">Best round ever</div><div class="value">${bestEver!=null?bestEver:'—'}</div></div>
+    `;
+  }
+
   async function renderDashboard(){
     // Teamless users (view-only, no stat tracking yet) skip the team-scoped
-    // cards entirely and just see the site-wide scoreboard below.
+    // cards entirely and just see the site-wide scoreboard + Site Trends
+    // below, neither of which are team-scoped.
     const teamCard = $('#dashboardTeamCard');
     const boardCard = $('#dashboardBoardCard');
+    const trendsCard = $('#dashboardTeamTrendsCard');
     const noTeamCard = $('#dashboardNoTeamCard');
+    renderDashboardSiteTrends();
     if(!state.user.teamId){
       if(teamCard) teamCard.style.display='none';
       if(boardCard) boardCard.style.display='none';
+      if(trendsCard) trendsCard.style.display='none';
       if(noTeamCard) noTeamCard.style.display='block';
       try{
         const site = await api('/site/leaderboard');
@@ -1077,23 +1138,15 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     }
     if(teamCard) teamCard.style.display='';
     if(boardCard) boardCard.style.display='';
+    if(trendsCard) trendsCard.style.display='';
     if(noTeamCard) noTeamCard.style.display='none';
 
     // --- Your team card ---
     $('#dashboardTeamHeading').textContent = 'Your team — ' + (state.user.teamName || '—');
-    const agg = aggregate({rollup:true}).filter(r=>r.rounds>0);
-    const totalRounds = state.weeks.length;
-    const allTotals = agg.flatMap(r=>r.totals);
-    const teamAvg = allTotals.length ? (allTotals.reduce((a,b)=>a+b,0)/allTotals.length) : null;
-    const bestEver = allTotals.length ? Math.max(...allTotals) : null;
-    $('#dashboardMetrics').innerHTML = `
-      <div class="metric"><div class="label">Rounds logged</div><div class="value">${totalRounds}</div></div>
-      <div class="metric"><div class="label">Active shooters</div><div class="value">${agg.length}</div></div>
-      <div class="metric"><div class="label">Team average</div><div class="value">${teamAvg!=null?teamAvg.toFixed(1):'—'}</div></div>
-      <div class="metric"><div class="label">Best round ever</div><div class="value">${bestEver!=null?bestEver:'—'}</div></div>
-    `;
+    $('#dashboardMetrics').innerHTML = teamMetricsHtml();
 
     // --- Condensed team leaderboard (top 5) ---
+    const agg = aggregate({rollup:true}).filter(r=>r.rounds>0);
     const sorted = [...agg].sort((a,b)=>b.avg-a.avg).slice(0,5);
     $('#dashboardTeamBoard').innerHTML = sorted.length ? sorted.map((r,i)=>`
       <div class="mini-row clickable" data-name="${escapeAttr(r.name)}"><span class="mini-rank">${i+1}</span><div class="mini-name">${escapeHtml(r.name)}${slBadge(r.name, state.user.teamId)}</div><span class="mini-pts">${r.avg.toFixed(1)}</span></div>
@@ -1101,6 +1154,9 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     Array.from($('#dashboardTeamBoard').querySelectorAll('.mini-row')).forEach(row=>{
       row.addEventListener('click', ()=> openShooterDrilldown(row.dataset.name));
     });
+
+    // --- Team Trends (condensed, non-interactive preview) ---
+    renderDashboardTeamTrends();
 
     // --- Site-wide scoreboard ---
     try{
@@ -1111,6 +1167,73 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
       $('#siteLeaderCallouts').innerHTML = '<div class="empty">Could not load the site-wide scoreboard.</div>';
       $('#siteTopShooters').innerHTML = ''; $('#siteTopTeams').innerHTML = '';
     }
+  }
+
+  // Condensed, non-interactive preview of the Team Trends chart for the
+  // main Dashboard — same underlying data as the full interactive version
+  // on Team > Team Dashboard, just without clickable legend chips (the
+  // legend here is read-only, showing which color belongs to which name).
+  function renderDashboardTeamTrends(){
+    const legend = $('#dashTeamTrendLegend');
+    const chart = $('#dashTeamTrendChart');
+    if(!legend || !chart) return;
+    const agg = aggregate({rollup:false}).filter(r=>r.rounds>0);
+    if(agg.length===0){ legend.innerHTML=''; chart.innerHTML = '<div class="empty">No rounds saved yet.</div>'; return; }
+    const top = [...agg].sort((a,b)=>b.rounds-a.rounds).slice(0,5);
+    legend.innerHTML = top.map((r)=>{
+      const color = COLORS[agg.indexOf(r) % COLORS.length];
+      return `<div class="chip active" style="--dot:${color};cursor:default"><span class="dot"></span>${escapeHtml(r.name)}${slBadge(r.name, state.user.teamId)}</div>`;
+    }).join('');
+    drawChart(top, agg, '#dashTeamTrendChart');
+  }
+
+  // Site-wide average score per round date — not team-scoped, visible even
+  // to teamless (view-only) users, same as the site-wide scoreboard above.
+  async function renderDashboardSiteTrends(){
+    const chart = $('#dashSiteTrendChart');
+    if(!chart) return;
+    try{
+      const data = await api('/site/trends');
+      drawSiteTrendChart(data, '#dashSiteTrendChart');
+    }catch(e){
+      console.error(e);
+      chart.innerHTML = '<div class="empty">Could not load site-wide trends.</div>';
+    }
+  }
+
+  function drawSiteTrendChart(data, containerSel){
+    const container = $(containerSel);
+    if(!data || data.length===0){ container.innerHTML = '<div class="empty">No rounds logged yet.</div>'; return; }
+    const W=640,H=260,padL=34,padR=14,padT=14,padB=28;
+    const plotW=W-padL-padR, plotH=H-padT-padB;
+    const xFor = i => padL + (data.length===1? plotW/2 : (i/(data.length-1))*plotW);
+    const yFor = v => padT + plotH - (v/25)*plotH;
+    let gridLines = '';
+    [0,5,10,15,20,25].forEach(v=>{
+      const y = yFor(v);
+      gridLines += `<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="#383b30" stroke-width="1"/>`;
+      gridLines += `<text x="${padL-6}" y="${y+4}" font-size="10" fill="#9c9c8e" text-anchor="end" font-family="IBM Plex Mono, monospace">${v}</text>`;
+    });
+    const points = data.map((d,i)=>[xFor(i), yFor(d.avg)]);
+    const path = points.map((p,pi)=> (pi===0?'M':'L')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+    let series = `<path d="${path}" fill="none" stroke="#ff6a2b" stroke-width="2.5"/>`;
+    points.forEach(p=>{ series += `<circle cx="${p[0]}" cy="${p[1]}" r="3.5" fill="#ff6a2b"/>`; });
+    let xLabels = '';
+    data.forEach((d,i)=>{
+      if(data.length>8 && i% Math.ceil(data.length/8) !==0) return;
+      xLabels += `<text x="${xFor(i)}" y="${H-8}" font-size="9" fill="#9c9c8e" text-anchor="middle" font-family="IBM Plex Mono, monospace">${d.date.slice(5)}</text>`;
+    });
+    container.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">${gridLines}${series}${xLabels}</svg>`;
+  }
+
+  // Full Team Dashboard sub-tab (Team > Team Dashboard): the same team
+  // metrics as the main Dashboard's team card, plus the full interactive
+  // Leaderboard and Trends views that used to be separate top-level tabs.
+  function loadTeamDashboardSubPanel(){
+    $('#teamDashHeading').textContent = 'Team stats — ' + (state.user.teamName || '—');
+    $('#teamDashMetrics').innerHTML = teamMetricsHtml();
+    renderLeaderboard();
+    renderTrends();
   }
 
   function renderSiteScoreboard(site){
@@ -1368,7 +1491,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     }catch(err){ const el = $('#teamLogoError'); el.textContent = err.message; el.style.display='block'; }
   });
 
-  async function loadTeamPanel(){
+  async function loadTeamAdminSubPanel(){
     loadTeamLogoCard();
     const el = $('#teamPendingBody');
     el.innerHTML = '<div class="empty">Loading…</div>';
@@ -1389,12 +1512,12 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     }catch(e){ el.innerHTML = '<div class="empty">Could not load pending requests: '+escapeHtml(e.message)+'</div>'; }
   }
   window.__tscApproveTeamRequest = async function(id){
-    try{ await api('/team/pending/'+id+'/approve', {method:'POST'}); loadTeamPanel(); }
+    try{ await api('/team/pending/'+id+'/approve', {method:'POST'}); loadTeamAdminSubPanel(); }
     catch(e){ alert('Could not approve: '+e.message); }
   };
   window.__tscDenyTeamRequest = async function(id){
     if(!confirm('Deny this request? They will need to pick a team again.')) return;
-    try{ await api('/team/pending/'+id+'/deny', {method:'POST'}); loadTeamPanel(); }
+    try{ await api('/team/pending/'+id+'/deny', {method:'POST'}); loadTeamAdminSubPanel(); }
     catch(e){ alert('Could not deny: '+e.message); }
   };
 

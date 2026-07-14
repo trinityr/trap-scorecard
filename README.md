@@ -132,7 +132,7 @@ Admins get an **Admin** tab in the app with:
 - **Rounds** — browse every round across every team and edit its date,
   round number, yardage, team, or individual scores (including who subbed
   for whom), or delete it outright — not limited to your own team the way
-  the regular New Round / History tabs are. Changing the Team dropdown
+  the regular Team → New Round / History sub-tabs are. Changing the Team dropdown
   moves the round to that team and re-matches shooter names against its
   roster. Shooter-name and "subbing for" fields autocomplete against the
   full cross-team roster to cut down on typos. Each shooter row also has
@@ -142,7 +142,7 @@ Admins get an **Admin** tab in the app with:
   and save, and they're split out into their own round record
   automatically, keeping the same date/yardage/team.
 
-Admins also see a **Team** picker at the top of the New Round tab, so they
+Admins also see a **Team** picker at the top of Team → New Round, so they
 can log a round on behalf of any team, not just their own — the saved
 round shows up under that team everywhere (Dashboard, History, Admin
 Rounds), not the admin's own team.
@@ -199,15 +199,16 @@ brand-new team, since nobody else exists yet to grant it). A Squad Leader
 is shown with a small orange "C" badge next to their name everywhere it
 appears — Dashboard, Team Leaderboard, Trends legend, History, the
 site-wide scoreboard, and the individual drilldown page — not just the
-session bar and Admin Users table. They also get a **Team** tab for
-approving people who've asked to join their team, and for managing their
-team's logo (see Team logos below).
+session bar and Admin Users table. They also get a **Team Admin** sub-tab
+(inside the Team tab — see Navigation below) for approving people who've
+asked to join their team, and for managing their team's logo (see Team
+logos below).
 
 Whenever someone picks an **existing** team — during registration, on the
 post-Google-sign-in team picker, or any other time a teamless account
 chooses a team — their membership starts out **pending**. They see a
 "waiting for approval" screen instead of the app until a Squad Leader or
-admin on that team approves them from the Team tab (or an admin flips
+admin on that team approves them from Team → Team Admin (or an admin flips
 their "Approved" checkbox directly in Admin → Users). Denying a request
 clears their team so they can pick again.
 
@@ -219,7 +220,7 @@ account on the whole app is also auto-approved for the same reason.
 ### Team logos
 
 A team's Squad Leader (for their own team) or an admin (for any team) can
-upload a logo — from the **Team** tab, or from Admin → Teams. Images are
+upload a logo — from **Team → Team Admin**, or from Admin → Teams. Images are
 resized client-side and stored directly in the database as a PNG data URL,
 same approach as scoresheet photo uploads, so there's no separate object
 storage to configure. Uploading a new logo replaces the old one; there's a
@@ -273,6 +274,30 @@ docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migratio
 This is very unlikely to apply to you if you're adopting both changes at
 once — the auth migration above assumes teams already exist.
 
+## Navigation
+
+Signed-in users see four top-level tabs: **Dashboard**, **Team**, **League**,
+and **Profile** (plus **Admin** for admins, and a temporary **Join a Team**
+tab for teamless users — see Browsing without a team below).
+
+Everything team-scoped now lives under the **Team** tab as four sub-tabs:
+- **Team Dashboard** — team stats (rounds logged, active shooters, team
+  average, best round ever), the full Team Leaderboard, and the full
+  interactive Team Trends chart. This is what opens by default whenever you
+  click the Team tab, and what "View full leaderboard" on the main
+  Dashboard jumps to.
+- **New Round** — upload a scoresheet photo or enter scores by hand (same
+  flow as before, including the admin Team picker for logging a round on
+  behalf of another team).
+- **History** — every past round for your team, expandable for full
+  station-by-station detail.
+- **Team Admin** — only visible to that team's Squad Leaders and admins:
+  pending join-request approvals and team logo management (previously the
+  whole content of a standalone Team tab).
+
+The Team tab (and its sub-tabs) is hidden entirely for teamless users, same
+as the individual tabs it replaces used to be.
+
 ## Rounds, substitutes, and drilldown
 
 Clubs that shoot more than one round a night can set a **Rnd** number on
@@ -302,19 +327,27 @@ tab, a shooter's name is followed by an asterisk (`*`) whenever that
 appearance was as a substitute for someone else, in addition to the
 existing "SUB for ___" tag.
 
-Click any name in the Leaderboard or the Dashboard's team board to open
-their **drilldown**: rounds shot, average, best round, station-by-station
-accuracy, a trend chart, and a full round-by-round history (each row
-tagged if it was shot as a substitute for someone else).
+Click any name in the Team Leaderboard (Team → Team Dashboard) or the main
+Dashboard's condensed team board to open their **drilldown**: rounds shot,
+average, best round, station-by-station accuracy, a trend chart, and a full
+round-by-round history (each row tagged if it was shot as a substitute for
+someone else).
 
 ## Dashboard
 
 Signed-in users land on a Dashboard tab showing their own team's quick
-stats (rounds logged, active shooters, team average, best round ever)
-and a condensed version of their team's leaderboard, plus a **site-wide
+stats (rounds logged, active shooters, team average, best round ever), a
+condensed version of their team's leaderboard ("View full leaderboard"
+jumps to Team → Team Dashboard), a condensed **Team Trends** chart (top 5
+shooters by rounds shot, non-interactive — the full interactive version
+with a clickable legend lives on Team → Team Dashboard), plus a **site-wide
 scoreboard** ranking every shooter and every team across the whole
-deployment — not just your own team. Ranking is by total combined score
-across every round ever logged (so it rewards consistent, frequent
+deployment — not just your own team — and a **Site Trends** chart: one
+line plotting the average score across every team, per round date. The
+site-wide scoreboard and Site Trends are visible even to teamless
+(view-only) users; the team-scoped cards are not (see Browsing without a
+team below). Ranking on the site-wide scoreboard is by total combined
+score across every round ever logged (so it rewards consistent, frequent
 shooting, not just a single good week). The leading individual and
 leading team are called out prominently at the top, with a top-10 list
 below each. If the leading individual's team, or the leading team itself,
@@ -370,13 +403,14 @@ works exactly as before; leagues are entirely optional.
 You can now sign in (or register) without picking a team right away —
 registration has a "Skip for now" option, and Google sign-in already
 worked this way for brand-new accounts. A teamless account can still see
-the site-wide scoreboard on the Dashboard and browse the League tab, but
-New Round, Leaderboard, Trends, and History are hidden until they join a
-team, since there's no team data to show. A dedicated **Join a team** tab
-appears right after Dashboard for exactly this — pick an existing team
-(same pending-approval flow as before) or start a new one (auto-approved,
-makes you its Squad Leader). Everything else about a user's permissions
-(Profile, etc.) is unaffected.
+the site-wide scoreboard and Site Trends on the Dashboard and browse the
+League tab, but the whole **Team** tab (Team Dashboard, New Round,
+History, Team Admin) is hidden until they join a team, since there's no
+team data to show. A dedicated **Join a team** tab appears right after
+Dashboard for exactly this — pick an existing team (same pending-approval
+flow as before) or start a new one (auto-approved, makes you its Squad
+Leader). Everything else about a user's permissions (Profile, etc.) is
+unaffected.
 
 ## API
 
@@ -417,6 +451,7 @@ makes you its Squad Leader). Everything else about a user's permissions
 - `GET /api/stats/leaderboard` — requires sign-in and an approved team, scoped to your team, **rolls substitute scores into the team member they subbed for**
 - `GET /api/stats/trends` — requires sign-in and an approved team, scoped to your team, per actual shooter (never rolled up)
 - `GET /api/site/leaderboard` — requires sign-in, cross-team scoreboard: `{ individuals: [...], teams: [...] }`, each ranked by total combined score, top 10, never rolled up
+- `GET /api/site/trends` — requires sign-in only (no team needed), `[{ "date", "avg" }, ...]` — the average score across every team/shooter for each round date, powers the Dashboard's Site Trends chart
 - `POST /api/extract` — body: `{ "image": "<base64, no data: prefix>" }` — requires sign-in and an approved team, returns parsed `{date, yardage, shooters}` read from the photo
 
 Routes marked "requires an approved team" return `403` for a signed-in

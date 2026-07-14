@@ -53,4 +53,25 @@ router.get("/leaderboard", async (_req: Request, res: Response) => {
   }
 });
 
+// GET /api/site/trends - one point per round date: the average score across
+// every team/shooter that logged a round that day. Intentionally not
+// team-scoped (same as /leaderboard above) and requireAuth only, no
+// requireApprovedTeam — this powers the Dashboard's "Site Trends" chart,
+// which is visible even to teamless (view-only) users.
+router.get("/trends", async (_req: Request, res: Response) => {
+  try {
+    const result = await pool.query(`
+      SELECT to_char(r.round_date, 'YYYY-MM-DD') AS date, ROUND(AVG(s.total)::numeric, 1)::float AS avg
+      FROM scores s
+      JOIN rounds r ON r.id = s.round_id
+      GROUP BY r.round_date
+      ORDER BY r.round_date ASC
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not load site-wide trends." });
+  }
+});
+
 export default router;
