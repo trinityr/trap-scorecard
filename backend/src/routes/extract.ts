@@ -5,7 +5,25 @@ import { getSetting } from "../settings";
 const router = Router();
 router.use(requireAuth);
 
-const EXTRACT_PROMPT = `You are reading a handwritten trap shooting scoresheet photographed by a phone camera. Each row is one shooter. Typically there are 5 stations (columns), each scored out of 5 (hits out of 5 clay targets), plus a total out of 25. Column headers might read 1-5 or STA 1-STA 5, plus TOTAL or TOT. Read the handwriting carefully, including any cross-outs or corrections, using the corrected value. If a value is illegible or missing, use null rather than guessing. If you can find a date on the sheet, include it as YYYY-MM-DD, otherwise use null. Respond with ONLY raw JSON, no markdown fences, no explanation, matching exactly this schema: {"date": "YYYY-MM-DD or null", "shooters": [{"name": "string", "stations": [n,n,n,n,n] each 0-5 or null per entry if unreadable, "total": number or null}]}`;
+const EXTRACT_PROMPT = `You are reading a handwritten trap shooting scoresheet photographed by a phone camera. Each row is one shooter. Typically there are 5 stations (columns), each scored out of 5 (hits out of 5 clay targets), plus a total out of 25. Column headers might read 1-5 or STA 1-STA 5, plus TOTAL or TOT. Read the handwriting carefully, including any cross-outs or corrections, using the corrected value. If a value is illegible or missing, use null rather than guessing. If you can find a date on the sheet, include it as YYYY-MM-DD, otherwise use null. If the sheet shows a yardage or yard line for the round (e.g. "16 YD", "16 YARD LINE", a single number near the top like 16-27), include it as a plain integer; this is one value for the whole sheet, not per shooter — if you can't find one, use null. Respond with ONLY raw JSON and nothing else — no markdown fences, no preamble like "Looking at the image...", no explanation before or after the JSON — matching exactly this schema: {"date": "YYYY-MM-DD or null", "yardage": "integer or null", "shooters": [{"name": "string", "stations": [n,n,n,n,n] each 0-5 or null per entry if unreadable, "total": number or null}]}`;
+
+// The model is asked to respond with raw JSON only, but vision models
+// sometimes ignore that and prepend a sentence or two of prose (e.g.
+// "Looking at this scoresheet, I can see...") before the JSON, or wrap it
+// in a markdown code fence. Stripping fences alone isn't enough — any
+// leading prose still makes JSON.parse throw "Unexpected token". Instead,
+// pull out the substring between the first "{" and the last "}" and parse
+// that, which is robust to both fences and a leading/trailing sentence.
+function extractJson(raw: string): any {
+  const withoutFences = raw.replace(/```json/gi, "").replace(/```/g, "").trim();
+  const start = withoutFences.indexOf("{");
+  const end = withoutFences.lastIndexOf("}");
+  if (start === -1 || end === -1 || end < start) {
+    throw new Error("The model's response didn't contain any JSON.");
+  }
+  const candidate = withoutFences.slice(start, end + 1);
+  return JSON.parse(candidate);
+}
 
 router.post("/", async (req: Request, res: Response) => {
   const { image } = req.body as { image?: string };
@@ -53,14 +71,16 @@ router.post("/", async (req: Request, res: Response) => {
       return res.status(502).json({ error: "No text response from the model." });
     }
 
-    const clean = textBlock.text
-      .trim()
-      .replace(/^```json/, "")
-      .replace(/^```/, "")
-      .replace(/```$/, "")
-      .trim();
+    let parsed: any;
+    try {
+      parsed = extractJson(textBlock.text);
+    } catch (parseErr: any) {
+      console.error("Could not parse model response as JSON:", textBlock.text);
+      return res.status(502).json({
+        error: "The model's response wasn't in the expected format. Try again, or enter the scores by hand below.",
+      });
+    }
 
-    const parsed = JSON.parse(clean);
     res.json(parsed);
   } catch (err: any) {
     console.error(err);

@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
+  name TEXT,
   is_admin BOOLEAN NOT NULL DEFAULT false,
   team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -51,6 +52,7 @@ CREATE TABLE IF NOT EXISTS rounds (
   id SERIAL PRIMARY KEY,
   team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
   round_date DATE NOT NULL,
+  yardage SMALLINT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

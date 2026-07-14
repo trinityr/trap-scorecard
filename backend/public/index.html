@@ -55,10 +55,11 @@ main{padding:22px 22px 48px;max-width:900px;margin:0 auto;}
 .row-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;}
 .field{margin-bottom:12px;}
 .field label{display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em;}
-.field input[type=date],.field input[type=text],.field input[type=email],.field input[type=password],.field select{
+.field input[type=date],.field input[type=text],.field input[type=email],.field input[type=password],.field input[type=number],.field select{
   width:100%;background:var(--bg-panel-raised);border:1px solid var(--line);color:var(--text-primary);
   padding:8px 10px;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:13px;
 }
+.field input:disabled{color:var(--text-muted);cursor:not-allowed;}
 .field.checkbox{display:flex;align-items:center;gap:8px;}
 .field.checkbox input{width:auto;}
 table.tbl{width:100%;border-collapse:collapse;font-size:13px;}
@@ -141,6 +142,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
 
   <div class="card" id="registerCard" style="display:none">
     <h3>Create an account</h3>
+    <div class="field"><label>Display name (optional)</label><input type="text" id="registerName" placeholder="e.g. Trinity R."/></div>
     <div class="field"><label>Email</label><input type="email" id="registerEmail"/></div>
     <div class="field"><label>Password (8+ characters)</label><input type="password" id="registerPassword"/></div>
     <div class="field">
@@ -163,6 +165,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
   <button class="tab" data-tab="board">Leaderboard</button>
   <button class="tab" data-tab="trends">Trends</button>
   <button class="tab" data-tab="history">History</button>
+  <button class="tab" data-tab="profile">Profile</button>
 </div>
 
 <main>
@@ -216,6 +219,10 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
         <label>Round date</label>
         <input type="date" id="draftDate"/>
       </div>
+      <div class="field">
+        <label>Yardage</label>
+        <input type="number" min="16" max="27" id="draftYardage" placeholder="e.g. 16"/>
+      </div>
       <div style="overflow-x:auto">
         <table class="tbl" id="draftTable">
           <thead>
@@ -245,6 +252,18 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     <div class="card"><h3>Past Rounds</h3><div id="historyBody"></div></div>
   </section>
 
+  <section class="panel" id="panel-profile">
+    <div class="card">
+      <h3>Your profile</h3>
+      <div class="field"><label>Email</label><input type="text" id="profileEmail" disabled/></div>
+      <div class="field"><label>Display name</label><input type="text" id="profileName" placeholder="e.g. Trinity R."/></div>
+      <button class="btn" id="saveProfileBtn">Save name</button>
+      <div class="toast" id="profileToast">Saved.</div>
+      <div class="error" id="profileError"></div>
+      <div class="note">Your display name shows up around the app instead of your email. Leave it blank to fall back to your email.</div>
+    </div>
+  </section>
+
   <section class="panel" id="panel-admin">
     <div class="card">
       <h3>App settings</h3>
@@ -264,17 +283,42 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
       <div class="toast" id="settingsToast">Saved.</div>
       <div class="error" id="settingsError"></div>
     </div>
-    <div class="card">
-      <h3>New team</h3>
-      <div class="field"><input type="text" id="adminNewTeamName" placeholder="Team name"/></div>
-      <button class="btn ghost small" id="adminCreateTeamBtn">Create team</button>
-    </div>
     <div class="card admin-users-table">
       <h3>Users</h3>
       <table class="tbl">
-        <thead><tr><th>Email</th><th>Team</th><th>Admin</th><th>Joined</th><th></th></tr></thead>
+        <thead><tr><th>Name</th><th>Email</th><th>Team</th><th>Admin</th><th>Joined</th><th></th></tr></thead>
         <tbody id="adminUsersBody"></tbody>
       </table>
+    </div>
+    <div class="card admin-users-table">
+      <h3>Teams</h3>
+      <table class="tbl">
+        <thead><tr><th>Name</th><th></th></tr></thead>
+        <tbody id="adminTeamsBody"></tbody>
+      </table>
+      <div class="row-actions">
+        <input type="text" id="adminNewTeamName" placeholder="New team name" style="flex:1;min-width:160px;background:var(--bg-panel-raised);border:1px solid var(--line);color:var(--text-primary);padding:8px 10px;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:13px;"/>
+        <button class="btn ghost small" id="adminCreateTeamBtn">Add team</button>
+      </div>
+      <div class="error" id="adminTeamsError"></div>
+    </div>
+    <div class="card admin-users-table">
+      <h3>Shooters</h3>
+      <table class="tbl">
+        <thead><tr><th>Name</th><th>Team</th><th>Rounds</th><th></th></tr></thead>
+        <tbody id="adminShootersBody"></tbody>
+      </table>
+      <div class="row-actions">
+        <input type="text" id="adminNewShooterName" placeholder="Shooter name" style="flex:1;min-width:140px;background:var(--bg-panel-raised);border:1px solid var(--line);color:var(--text-primary);padding:8px 10px;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:13px;"/>
+        <select id="adminNewShooterTeam" style="background:var(--bg-panel-raised);border:1px solid var(--line);color:var(--text-primary);padding:8px 10px;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:13px;"></select>
+        <button class="btn ghost small" id="adminAddShooterBtn">Add shooter</button>
+      </div>
+      <div class="error" id="adminShootersError"></div>
+    </div>
+    <div class="card">
+      <h3>Rounds</h3>
+      <div class="note" style="margin-top:0">Tap a round to edit its date, yardage, or scores — across any team.</div>
+      <div id="adminRoundsBody"></div>
     </div>
   </section>
 
@@ -284,7 +328,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
 <script>
 (function(){
   const COLORS = ['#ff6a2b','#c9a24b','#8ab06a','#6a9ac9','#c96ab0','#c65c4a','#6ac9b0'];
-  const state = { weeks: [], activeTab: 'new', imageBase64: null, draftShooters: [], trendSelected: new Set(), user: null, teams: [] };
+  const state = { weeks: [], activeTab: 'new', imageBase64: null, draftShooters: [], trendSelected: new Set(), user: null, teams: [], adminEditingRound: null };
   const $ = sel => document.querySelector(sel);
 
   async function api(path, opts){
@@ -349,8 +393,9 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     $('#registerError').style.display='none';
     const email = $('#registerEmail').value.trim();
     const password = $('#registerPassword').value;
+    const name = $('#registerName').value.trim();
     const teamSel = $('#registerTeamSelect').value;
-    const body = {email, password};
+    const body = {email, password, name};
     if(teamSel==='__new__') body.newTeamName = $('#registerNewTeamName').value.trim();
     else body.teamId = Number(teamSel);
     const btn = $('#registerBtn');
@@ -376,7 +421,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
   function renderSessionBar(){
     const bar = $('#sessionBar');
     bar.style.display='flex';
-    bar.innerHTML = `<span><b>${escapeHtml(state.user.email)}</b> · Team: <b>${escapeHtml(state.user.teamName||'—')}</b>${state.user.isAdmin?' · <span class="badge">ADMIN</span>':''}</span><button class="btn ghost small" id="logoutBtn">Sign out</button>`;
+    bar.innerHTML = `<span><b>${escapeHtml(state.user.name || state.user.email)}</b> · Team: <b>${escapeHtml(state.user.teamName||'—')}</b>${state.user.isAdmin?' · <span class="badge">ADMIN</span>':''}</span><button class="btn ghost small" id="logoutBtn">Sign out</button>`;
     $('#logoutBtn').addEventListener('click', async ()=>{
       await api('/auth/logout', {method:'POST'});
       location.reload();
@@ -401,6 +446,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
       if(btn.dataset.tab==='board') renderLeaderboard();
       if(btn.dataset.tab==='trends') renderTrends();
       if(btn.dataset.tab==='history') renderHistory();
+      if(btn.dataset.tab==='profile') loadProfilePanel();
       if(btn.dataset.tab==='admin') loadAdminPanel();
     });
   }
@@ -419,7 +465,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
   async function loadWeeks(){
     try{
       const rounds = await api('/rounds');
-      state.weeks = rounds.map(r=>({key:r.id, date:r.date, shooters:r.shooters}));
+      state.weeks = rounds.map(r=>({key:r.id, date:r.date, yardage:r.yardage, shooters:r.shooters}));
       state.weeks.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
     }catch(e){ console.error('Could not load rounds', e); }
     renderFieldArc();
@@ -427,7 +473,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
 
   async function saveWeekToApi(entry){
     const result = await api('/rounds', {method:'POST', body: JSON.stringify(entry)});
-    state.weeks.push({key:result.id, date:entry.date, shooters:entry.shooters});
+    state.weeks.push({key:result.id, date:entry.date, yardage:entry.yardage, shooters:entry.shooters});
     state.weeks.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
   }
 
@@ -468,6 +514,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
   $('#manualBtn').addEventListener('click', ()=>{
     state.draftShooters = [{name:'', stations:[null,null,null,null,null], total:null}];
     $('#draftDate').value = todayISO();
+    $('#draftYardage').value = '';
     $('#draftCard').style.display='block';
     renderDraftTable();
   });
@@ -487,6 +534,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
       }));
       if(state.draftShooters.length===0) state.draftShooters=[{name:'',stations:[null,null,null,null,null],total:null}];
       $('#draftDate').value = parsed.date && /^\d{4}-\d{2}-\d{2}$/.test(parsed.date) ? parsed.date : todayISO();
+      $('#draftYardage').value = parsed.yardage!=null ? parsed.yardage : '';
       $('#draftCard').style.display='block';
       renderDraftTable();
     }catch(err){
@@ -547,6 +595,8 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
 
   $('#saveWeekBtn').addEventListener('click', async ()=>{
     const date = $('#draftDate').value || todayISO();
+    const yardageVal = $('#draftYardage').value;
+    const yardage = yardageVal==='' ? null : Number(yardageVal);
     const shooters = state.draftShooters
       .filter(s=>s.name && s.name.trim())
       .map(s=>({name:s.name.trim(), stations:s.stations, total: s.total!=null? s.total : autoTotal(s.stations)}));
@@ -554,7 +604,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     const btn = $('#saveWeekBtn');
     btn.disabled = true; btn.textContent='Saving...';
     try{
-      await saveWeekToApi({date, shooters});
+      await saveWeekToApi({date, yardage, shooters});
       const toast = $('#saveToast');
       toast.style.display='block';
       setTimeout(()=>toast.style.display='none', 2500);
@@ -565,6 +615,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
       uploadLabel.textContent = "Tap to choose a photo of this week's scoresheet";
       extractBtn.disabled = true;
       fileInput.value='';
+      $('#draftYardage').value='';
       renderFieldArc();
     }catch(e){ alert('Could not save: '+e.message); }
     finally{ btn.disabled=false; btn.textContent='Save this round'; }
@@ -716,7 +767,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     const sorted = [...state.weeks].sort((a,b)=> (b.date||'').localeCompare(a.date||''));
     el.innerHTML = sorted.map(w=>`
       <div class="history-item" data-key="${escapeAttr(w.key)}">
-        <div class="history-head"><span class="d">${escapeHtml(w.date||'undated')}</span><span class="lb-sub">${(w.shooters||[]).length} shooters</span></div>
+        <div class="history-head"><span class="d">${escapeHtml(w.date||'undated')}${w.yardage!=null? ' · '+w.yardage+' yd':''}</span><span class="lb-sub">${(w.shooters||[]).length} shooters</span></div>
         <div class="history-body">
           <table class="tbl">
             <thead><tr><th>Shooter</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>Total</th></tr></thead>
@@ -763,6 +814,29 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     el.innerHTML = `<svg viewBox="0 0 300 150" style="width:100%;height:auto">${dots}</svg>`;
   }
 
+  // ---------- Profile panel ----------
+  function loadProfilePanel(){
+    $('#profileEmail').value = state.user.email;
+    $('#profileName').value = state.user.name || '';
+    $('#profileError').style.display='none';
+  }
+
+  $('#saveProfileBtn').addEventListener('click', async ()=>{
+    $('#profileError').style.display='none';
+    const name = $('#profileName').value.trim();
+    const btn = $('#saveProfileBtn');
+    btn.disabled = true; btn.textContent = 'Saving...';
+    try{
+      const user = await api('/auth/me', {method:'PUT', body: JSON.stringify({name})});
+      state.user = user;
+      renderSessionBar();
+      const toast = $('#profileToast');
+      toast.style.display='block';
+      setTimeout(()=>toast.style.display='none', 2000);
+    }catch(e){ showAuthError('#profileError', e.message); }
+    finally{ btn.disabled=false; btn.textContent='Save name'; }
+  });
+
   // ---------- Admin panel ----------
   async function loadAdminPanel(){
     try{
@@ -773,11 +847,13 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
       $('#settingAllowRegistration').checked = settings.allow_registration !== 'false';
     }catch(e){ console.error(e); }
 
+    let teams = [];
     try{
       const users = await api('/admin/users');
-      const teams = await api('/teams');
+      teams = await api('/teams');
       $('#adminUsersBody').innerHTML = users.map(u=>`
         <tr>
+          <td>${escapeHtml(u.name||'—')}</td>
           <td>${escapeHtml(u.email)}</td>
           <td><select onchange="window.__tscSetUserTeam(${u.id}, this.value)">${teams.map(t=>`<option value="${t.id}" ${t.id===u.team_id?'selected':''}>${escapeHtml(t.name)}</option>`).join('')}</select></td>
           <td><input type="checkbox" ${u.is_admin?'checked':''} onchange="window.__tscSetUserAdmin(${u.id}, this.checked)"/></td>
@@ -785,7 +861,186 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
           <td><button class="rm" onclick="window.__tscRemoveUser(${u.id})">✕</button></td>
         </tr>`).join('');
     }catch(e){ console.error(e); }
+
+    renderAdminTeamsTable(teams);
+
+    try{
+      const shooters = await api('/admin/shooters');
+      renderAdminShootersTable(shooters, teams);
+    }catch(e){ console.error(e); }
+
+    try{
+      const rounds = await api('/admin/rounds');
+      renderAdminRoundsList(rounds);
+    }catch(e){ console.error(e); }
   }
+
+  // ---------- Admin: Teams ----------
+  function renderAdminTeamsTable(teams){
+    $('#adminTeamsBody').innerHTML = teams.map(t=>`
+      <tr>
+        <td><input type="text" value="${escapeAttr(t.name)}" onchange="window.__tscRenameTeam(${t.id}, this.value)"/></td>
+        <td><button class="rm" onclick="window.__tscDeleteTeam(${t.id})">✕</button></td>
+      </tr>`).join('');
+  }
+
+  window.__tscRenameTeam = async function(id, name){
+    name = name.trim();
+    if(!name) return;
+    try{ await api('/admin/teams/'+id, {method:'PUT', body: JSON.stringify({name})}); loadAdminPanel(); }
+    catch(e){ const el = $('#adminTeamsError'); el.textContent = e.message; el.style.display='block'; loadAdminPanel(); }
+  };
+  window.__tscDeleteTeam = async function(id){
+    if(!confirm('Delete this team? This also deletes every shooter, round, and score that belongs to it. This cannot be undone.')) return;
+    try{ await api('/admin/teams/'+id, {method:'DELETE'}); loadAdminPanel(); }
+    catch(e){ const el = $('#adminTeamsError'); el.textContent = e.message; el.style.display='block'; }
+  };
+
+  // ---------- Admin: Shooters ----------
+  function renderAdminShootersTable(shooters, teams){
+    $('#adminShootersBody').innerHTML = shooters.map(s=>`
+      <tr>
+        <td><input type="text" value="${escapeAttr(s.name)}" onchange="window.__tscRenameShooter(${s.id}, this.value)"/></td>
+        <td><select onchange="window.__tscReassignShooter(${s.id}, this.value)">${teams.map(t=>`<option value="${t.id}" ${t.id===s.team_id?'selected':''}>${escapeHtml(t.name)}</option>`).join('')}</select></td>
+        <td class="mono">${s.rounds}</td>
+        <td><button class="rm" onclick="window.__tscDeleteShooter(${s.id}, ${s.rounds})">✕</button></td>
+      </tr>`).join('');
+    const teamSel = $('#adminNewShooterTeam');
+    teamSel.innerHTML = teams.map(t=>`<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
+  }
+
+  window.__tscRenameShooter = async function(id, name){
+    name = name.trim();
+    if(!name) return;
+    try{ await api('/admin/shooters/'+id, {method:'PUT', body: JSON.stringify({name})}); loadAdminPanel(); }
+    catch(e){ const el = $('#adminShootersError'); el.textContent = e.message; el.style.display='block'; loadAdminPanel(); }
+  };
+  window.__tscReassignShooter = async function(id, teamId){
+    try{ await api('/admin/shooters/'+id, {method:'PUT', body: JSON.stringify({teamId: Number(teamId)})}); loadAdminPanel(); }
+    catch(e){ const el = $('#adminShootersError'); el.textContent = e.message; el.style.display='block'; loadAdminPanel(); }
+  };
+  window.__tscDeleteShooter = async function(id, rounds){
+    const warn = rounds>0 ? ' This deletes all '+rounds+' of their logged rounds too.' : '';
+    if(!confirm('Remove this shooter?'+warn+' This cannot be undone.')) return;
+    try{ await api('/admin/shooters/'+id, {method:'DELETE'}); loadAdminPanel(); }
+    catch(e){ const el = $('#adminShootersError'); el.textContent = e.message; el.style.display='block'; }
+  };
+
+  $('#adminAddShooterBtn').addEventListener('click', async ()=>{
+    $('#adminShootersError').style.display='none';
+    const name = $('#adminNewShooterName').value.trim();
+    const teamId = $('#adminNewShooterTeam').value;
+    if(!name || !teamId) return;
+    try{
+      await api('/admin/shooters', {method:'POST', body: JSON.stringify({name, teamId: Number(teamId)})});
+      $('#adminNewShooterName').value='';
+      loadAdminPanel();
+    }catch(e){ const el = $('#adminShootersError'); el.textContent = e.message; el.style.display='block'; }
+  });
+
+  // ---------- Admin: Rounds ----------
+  function renderAdminRoundsList(rounds){
+    const el = $('#adminRoundsBody');
+    if(rounds.length===0){ el.innerHTML = '<div class="empty">No rounds logged yet.</div>'; return; }
+    el.innerHTML = rounds.map(r=>`
+      <div class="history-item" data-around="${r.id}">
+        <div class="history-head"><span class="d">${escapeHtml(r.round_date)} · ${escapeHtml(r.team_name)}${r.yardage!=null? ' · '+r.yardage+' yd':''}</span><span class="lb-sub">${r.shooter_count} shooters</span></div>
+        <div class="history-body" id="adminRoundBody-${r.id}"></div>
+      </div>`).join('');
+    Array.from(el.querySelectorAll('.history-item')).forEach(item=>{
+      item.querySelector('.history-head').addEventListener('click', ()=> window.__tscToggleAdminRound(item.dataset.around));
+    });
+  }
+
+  window.__tscToggleAdminRound = async function(id){
+    const item = document.querySelector('.history-item[data-around="'+id+'"]');
+    const wasOpen = item.classList.contains('open');
+    item.classList.toggle('open');
+    if(wasOpen) return;
+    const body = $('#adminRoundBody-'+id);
+    body.innerHTML = '<div class="empty">Loading…</div>';
+    try{
+      const detail = await api('/admin/rounds/'+id);
+      renderAdminRoundEditor(id, detail);
+    }catch(e){ body.innerHTML = '<div class="empty">Could not load: '+escapeHtml(e.message)+'</div>'; }
+  };
+
+  function renderAdminRoundEditor(id, detail){
+    const body = $('#adminRoundBody-'+id);
+    state.adminEditingRound = { id, draft: { shooters: detail.shooters.map(s=>({name:s.name, stations:s.stations.slice(), total:s.total})) } };
+    body.innerHTML = `
+      <div class="field"><label>Round date</label><input type="date" id="adminRoundDate-${id}" value="${detail.date}"/></div>
+      <div class="field"><label>Yardage</label><input type="number" min="16" max="27" id="adminRoundYardage-${id}" value="${detail.yardage!=null?detail.yardage:''}"/></div>
+      <div style="overflow-x:auto">
+        <table class="tbl">
+          <thead><tr><th style="min-width:120px">Shooter</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>Total</th><th></th></tr></thead>
+          <tbody id="adminRoundTableBody-${id}"></tbody>
+        </table>
+      </div>
+      <div class="row-actions">
+        <button class="btn ghost small" onclick="window.__tscAdminAddRow(${id})">+ Add shooter</button>
+        <button class="btn" onclick="window.__tscSaveAdminRound(${id})">Save changes</button>
+        <button class="btn danger small" onclick="window.__tscDeleteAdminRound(${id})">Delete round</button>
+      </div>
+      <div class="error" id="adminRoundError-${id}"></div>
+    `;
+    renderAdminRoundTable(id);
+  }
+
+  function renderAdminRoundTable(id){
+    const draft = state.adminEditingRound.draft;
+    const tbody = $('#adminRoundTableBody-'+id);
+    tbody.innerHTML = draft.shooters.map((s,idx)=>`
+      <tr>
+        <td><input class="name-input" value="${escapeAttr(s.name)}" oninput="window.__tscAdminUpdateField(${id},${idx},this.value)"/></td>
+        ${[0,1,2,3,4].map(si=>`<td class="station-cell"><input type="number" min="0" max="5" value="${s.stations[si]!=null?s.stations[si]:''}" oninput="window.__tscAdminUpdateStation(${id},${idx},${si},this.value)"/></td>`).join('')}
+        <td class="total-cell" id="adminRoundTotal-${id}-${idx}">${s.total!=null?s.total:'—'}</td>
+        <td><button class="rm" onclick="window.__tscAdminRemoveRow(${id},${idx})">✕</button></td>
+      </tr>`).join('');
+  }
+
+  window.__tscAdminUpdateField = function(id, idx, value){ state.adminEditingRound.draft.shooters[idx].name = value; };
+  window.__tscAdminUpdateStation = function(id, idx, si, value){
+    const draft = state.adminEditingRound.draft;
+    const n = value===''? null : Math.max(0, Math.min(5, Number(value)));
+    draft.shooters[idx].stations[si] = n;
+    const nums = draft.shooters[idx].stations.filter(v=>typeof v==='number');
+    const total = nums.length? nums.reduce((a,b)=>a+b,0) : null;
+    if(total!=null){
+      draft.shooters[idx].total = total;
+      const cell = document.querySelector('#adminRoundTotal-'+id+'-'+idx);
+      if(cell) cell.textContent = total;
+    }
+  };
+  window.__tscAdminAddRow = function(id){
+    state.adminEditingRound.draft.shooters.push({name:'', stations:[null,null,null,null,null], total:null});
+    renderAdminRoundTable(id);
+  };
+  window.__tscAdminRemoveRow = function(id, idx){
+    state.adminEditingRound.draft.shooters.splice(idx,1);
+    renderAdminRoundTable(id);
+  };
+
+  window.__tscSaveAdminRound = async function(id){
+    const draft = state.adminEditingRound.draft;
+    const date = $('#adminRoundDate-'+id).value;
+    const yardageVal = $('#adminRoundYardage-'+id).value;
+    const yardage = yardageVal===''? null : Number(yardageVal);
+    const shooters = draft.shooters.filter(s=>s.name && s.name.trim()).map(s=>({name:s.name.trim(), stations:s.stations, total:s.total}));
+    const errEl = $('#adminRoundError-'+id);
+    errEl.style.display='none';
+    if(!date){ errEl.textContent='A round date is required.'; errEl.style.display='block'; return; }
+    try{
+      await api('/admin/rounds/'+id, {method:'PUT', body: JSON.stringify({date, yardage, shooters})});
+      loadAdminPanel();
+    }catch(e){ errEl.textContent = e.message; errEl.style.display='block'; }
+  };
+
+  window.__tscDeleteAdminRound = async function(id){
+    if(!confirm('Delete this round? This cannot be undone.')) return;
+    try{ await api('/admin/rounds/'+id, {method:'DELETE'}); loadAdminPanel(); }
+    catch(e){ alert('Could not delete round: '+e.message); }
+  };
 
   window.__tscSetUserTeam = async function(id, teamId){
     try{ await api('/admin/users/'+id, {method:'PUT', body: JSON.stringify({teamId: Number(teamId)})}); }

@@ -7,5 +7,6 @@ export interface ShooterScore {
 export interface RoundInput {
   teamId: number;
   date: string; // YYYY-MM-DD
+  yardage: number | null; // one value for the whole round, e.g. 16
   shooters: ShooterScore[];
 }

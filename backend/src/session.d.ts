@@ -5,6 +5,7 @@ declare module "express-session" {
     user?: {
       id: number;
       email: string;
+      name: string | null;
       isAdmin: boolean;
       teamId: number | null;
       teamName?: string;

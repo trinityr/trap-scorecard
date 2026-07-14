@@ -16,7 +16,7 @@ function autoTotal(stations: (number | null)[] | undefined): number | null {
 // POST /api/rounds - save a week's scoresheet for the signed-in user's team
 router.post("/", async (req: Request, res: Response) => {
   const teamId = req.session.user!.teamId;
-  const body = req.body as { date?: string; shooters?: ShooterScore[] };
+  const body = req.body as { date?: string; yardage?: number | string | null; shooters?: ShooterScore[] };
 
   if (!teamId) {
     return res.status(400).json({ error: "Your account isn't attached to a team." });
@@ -24,6 +24,7 @@ router.post("/", async (req: Request, res: Response) => {
   if (!body?.date || !Array.isArray(body.shooters) || body.shooters.length === 0) {
     return res.status(400).json({ error: "Request needs a date and at least one shooter." });
   }
+  const yardage = body.yardage != null && body.yardage !== "" ? Number(body.yardage) : null;
 
   let client;
   try {
@@ -31,8 +32,8 @@ router.post("/", async (req: Request, res: Response) => {
     await client.query("BEGIN");
 
     const roundResult = await client.query(
-      "INSERT INTO rounds (team_id, round_date) VALUES ($1, $2) RETURNING id",
-      [teamId, body.date]
+      "INSERT INTO rounds (team_id, round_date, yardage) VALUES ($1, $2, $3) RETURNING id",
+      [teamId, body.date, yardage]
     );
     const roundId = roundResult.rows[0].id;
 
@@ -83,7 +84,7 @@ router.get("/", async (req: Request, res: Response) => {
 
   try {
     const rounds = await pool.query(
-      "SELECT id, round_date FROM rounds WHERE team_id = $1 ORDER BY round_date DESC",
+      "SELECT id, round_date, yardage FROM rounds WHERE team_id = $1 ORDER BY round_date DESC",
       [teamId]
     );
 
@@ -110,6 +111,7 @@ router.get("/", async (req: Request, res: Response) => {
       rounds.rows.map((r) => ({
         id: r.id,
         date: r.round_date,
+        yardage: r.yardage,
         shooters: byRound[r.id] || [],
       }))
     );

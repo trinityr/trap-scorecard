@@ -19,6 +19,8 @@ backend/
   sql/migrations/
     001_add_teams.sql       <- run manually against an existing database to add team support
     002_add_auth.sql        <- run manually against an existing database to add user accounts
+    003_add_user_name.sql   <- run manually to add the optional display-name column to users
+    004_add_yardage.sql     <- run manually to add the yardage column to rounds
   public/
     index.html              <- the scorecard web app: sign-in/register + admin panel + scoring UI
   src/
@@ -28,8 +30,8 @@ backend/
     auth.ts                <- password hashing, requireAuth/requireAdmin middleware
     settings.ts             <- DB-backed runtime settings (falls back to .env)
     session.d.ts             <- TypeScript types for the session's logged-in user
-    routes/auth.ts          <- POST /api/auth/register, /login, /logout, GET /me
-    routes/admin.ts         <- admin-only: app settings + user management
+    routes/auth.ts          <- POST /api/auth/register, /login, /logout, GET/PUT /me
+    routes/admin.ts         <- admin-only: app settings, users, teams, shooters, rounds
     routes/teams.ts         <- GET /api/teams (public, needed for the registration form)
     routes/rounds.ts        <- POST/GET/DELETE /api/rounds (scoped to your session's team)
     routes/stats.ts         <- GET /api/stats/leaderboard, /api/stats/trends (scoped to your team)
@@ -109,7 +111,20 @@ Admins get an **Admin** tab in the app with:
   before an admin sets anything.
 - **Users** — reassign anyone to a different team, promote/demote admins,
   or remove an account.
-- **Teams** — create additional teams at any time.
+- **Teams** — create, rename, or delete teams at any time. Deleting a team
+  also deletes every shooter, round, and score that belongs to it, so it's
+  blocked while any user account is still assigned to that team — reassign
+  or remove those users first.
+- **Shooters** — add a shooter to a roster ahead of their first round,
+  rename one (their score history follows, since it's tied to their
+  account row, not their name), move them to a different team, or delete
+  them (this also deletes all of their logged scores).
+- **Rounds** — browse every round across every team and edit its date,
+  yardage, or individual scores, or delete it outright — not limited to
+  your own team the way the regular New Round / History tabs are.
+
+Any signed-in user (not just admins) also gets a **Profile** tab to set an
+optional display name, shown instead of their email around the app.
 
 Sessions are stored in Postgres (via `connect-pg-simple`) and last 30
 days. If you ever change `SESSION_SECRET`, everyone gets signed out — this
@@ -125,6 +140,14 @@ docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migratio
 if you changed them). It only adds the new tables — nothing you've already
 entered is touched. After that, everyone just registers as normal; the
 first person to do so becomes admin.
+
+**If you already had accounts before the Profile tab or yardage were
+added**, run these two migrations once against your existing database
+(both are additive — nothing existing is touched):
+```bash
+docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migrations/003_add_user_name.sql
+docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migrations/004_add_yardage.sql
+```
 
 ## Teams
 
@@ -155,20 +178,31 @@ below each.
 
 ## API
 
-- `POST /api/auth/register` — body: `{ "email", "password", "teamId" or "newTeamName" }`
+- `POST /api/auth/register` — body: `{ "email", "password", "name" (optional), "teamId" or "newTeamName" }`
 - `POST /api/auth/login` — body: `{ "email", "password" }`
 - `POST /api/auth/logout`
 - `GET /api/auth/me` — current session user, or 401
+- `PUT /api/auth/me` — body: `{ "name" }` — requires sign-in, sets/clears your own display name
 - `GET /api/admin/settings` / `PUT /api/admin/settings` — admin only
 - `GET /api/admin/users` / `PUT /api/admin/users/:id` / `DELETE /api/admin/users/:id` — admin only
-- `POST /api/admin/teams` — admin only
+- `POST /api/admin/teams` — admin only, create a team
+- `PUT /api/admin/teams/:id` — admin only, body: `{ "name" }`, rename a team
+- `DELETE /api/admin/teams/:id` — admin only, cascades to that team's shooters/rounds/scores; blocked while users are still assigned to it
+- `GET /api/admin/shooters` — admin only, every shooter across every team with a round count
+- `POST /api/admin/shooters` — admin only, body: `{ "name", "teamId" }`
+- `PUT /api/admin/shooters/:id` — admin only, body: `{ "name"?, "teamId"? }` — rename and/or reassign team
+- `DELETE /api/admin/shooters/:id` — admin only, also deletes that shooter's score history
+- `GET /api/admin/rounds` — admin only, every round across every team
+- `GET /api/admin/rounds/:id` — admin only, full shooter/score detail for one round
+- `PUT /api/admin/rounds/:id` — admin only, body: `{ "date", "yardage", "shooters": [...] }` — replaces the round's date/yardage/scores (team is fixed)
+- `DELETE /api/admin/rounds/:id` — admin only, deletes any round regardless of team
 - `GET /api/teams` — list all teams (public, used by the registration form)
-- `POST /api/rounds` — body: `{ "date": "YYYY-MM-DD", "shooters": [{ "name", "stations": [n,n,n,n,n], "total": n }] }` — requires sign-in, scoped to your team automatically
+- `POST /api/rounds` — body: `{ "date": "YYYY-MM-DD", "yardage": n or null, "shooters": [{ "name", "stations": [n,n,n,n,n], "total": n }] }` — requires sign-in, scoped to your team automatically
 - `GET /api/rounds` — every saved round for your team — requires sign-in
 - `DELETE /api/rounds/:id` — requires sign-in, only deletes rounds belonging to your own team
 - `GET /api/stats/leaderboard` / `GET /api/stats/trends` — requires sign-in, scoped to your team
 - `GET /api/site/leaderboard` — requires sign-in, cross-team scoreboard: `{ individuals: [...], teams: [...] }`, each ranked by total combined score, top 10
-- `POST /api/extract` — body: `{ "image": "<base64, no data: prefix>" }` — requires sign-in, returns parsed `{date, shooters}` read from the photo
+- `POST /api/extract` — body: `{ "image": "<base64, no data: prefix>" }` — requires sign-in, returns parsed `{date, yardage, shooters}` read from the photo
 
 ## Local development without Docker
 
