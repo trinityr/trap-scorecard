@@ -40,7 +40,7 @@ DISK_GB="${DISK_GB:-8}"
 STORAGE="${STORAGE:-local-lvm}"
 TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-local}"
 BRIDGE="${BRIDGE:-vmbr0}"
-NET_CONFIG="${NET_CONFIG:-dhcp}"          # "dhcp" or e.g. "192.168.100.50/24,gw=192.168.100.1"
+NET_CONFIG="${NET_CONFIG:-dhcp}"          # "dhcp" or e.g. "192.168.1.50/24,gw=192.168.1.1"
 CTID="${CTID:-}"                          # blank = auto-pick next free ID
 CT_PASSWORD="${CT_PASSWORD:-}"            # blank = auto-generate
 TEMPLATE_PATTERN="${TEMPLATE_PATTERN:-debian-12-standard}"
@@ -62,7 +62,7 @@ ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}"    # optional — can also be set lat
 # get your first login. Leave ADMIN_EMAIL blank to skip this and fall
 # back to the old "first to register wins" behavior instead.
 ADMIN_EMAIL="${ADMIN_EMAIL:-}"
-ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"          # blank = auto-generate a random 15-character password
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"          # blank = auto-generate a random 16-character password
 ADMIN_TEAM_NAME="${ADMIN_TEAM_NAME:-Default Team}"
 SESSION_SECRET="${SESSION_SECRET:-}"          # blank = auto-generate
 API_HOST_PORT="${API_HOST_PORT:-3000}"       # published port on this VM — change if 3000 is already taken
@@ -130,7 +130,7 @@ run_wizard() {
 
   if confirm "Pre-seed a known admin account? (recommended — otherwise the first person to register becomes admin)" y; then
     prompt ADMIN_EMAIL "Admin email" "${ADMIN_EMAIL:-admin@${CT_HOSTNAME}.local}"
-    prompt ADMIN_PASSWORD "Admin password (blank = auto-generate 15 characters)" "${ADMIN_PASSWORD:-auto-generate}"
+    prompt ADMIN_PASSWORD "Admin password (blank = auto-generate 16 characters)" "${ADMIN_PASSWORD:-auto-generate}"
     [ "$ADMIN_PASSWORD" = "auto-generate" ] && ADMIN_PASSWORD=""
     prompt ADMIN_TEAM_NAME "Admin's team name" "$ADMIN_TEAM_NAME"
   else
@@ -177,7 +177,7 @@ if [ -z "$POSTGRES_PASSWORD" ]; then
   # break URL parsing if this password ever ends up embedded in a
   # postgres:// connection string (the app itself no longer does this,
   # but plenty of tools/scripts default to that pattern).
-  POSTGRES_PASSWORD="$(tr -dc 'A-Za-z0-9' < /dev/urandom | head -c24)"
+  POSTGRES_PASSWORD="$(openssl rand -hex 12)"
 fi
 
 if [ -z "$SESSION_SECRET" ]; then
@@ -189,7 +189,7 @@ if [ -z "$ANTHROPIC_API_KEY" ]; then
 fi
 
 if [ -n "$ADMIN_EMAIL" ] && [ -z "$ADMIN_PASSWORD" ]; then
-  ADMIN_PASSWORD="$(tr -dc 'A-Za-z0-9' < /dev/urandom | head -c15)"
+  ADMIN_PASSWORD="$(openssl rand -hex 8)"
 fi
 
 if [ -z "$CTID" ]; then
