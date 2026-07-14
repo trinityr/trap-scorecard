@@ -103,6 +103,10 @@ app.use(express.static(path.join(__dirname, "..", "public")));
 // guarantees every response is JSON, and logs the real error server-side
 // for debugging (check `docker compose logs api`).
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  if (err?.type === "entity.parse.failed" || err instanceof SyntaxError) {
+    console.error("Malformed request body (invalid JSON):", err.message);
+    return res.status(400).json({ error: "Request body isn't valid JSON. If you're testing with curl on Windows cmd.exe, single quotes aren't stripped the way they are in bash — use double quotes and escape the inner ones instead." });
+  }
   console.error("Unhandled error:", err);
   if (res.headersSent) return;
   res.status(err?.status || 500).json({ error: "Something went wrong on the server. Check the api container logs for details." });
