@@ -9,6 +9,23 @@ function canManageTeam(req: Request): boolean {
   return Boolean(req.session.user?.isAdmin || req.session.user?.isSquadLeader);
 }
 
+// GET /api/team/squad-leaders - every Squad Leader across every team, just
+// {name, team_id}. Open to any signed-in, approved user (not just Squad
+// Leaders/admins) — the frontend uses this to badge a Squad Leader's name
+// with the orange "C" everywhere they appear (Leaderboard, Dashboard,
+// site-wide scoreboard, History, drilldown), not just in admin views.
+router.get("/squad-leaders", async (_req: Request, res: Response) => {
+  try {
+    const result = await pool.query(
+      "SELECT name, team_id FROM users WHERE is_squad_leader = true AND name IS NOT NULL"
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not load Squad Leaders." });
+  }
+});
+
 // GET /api/team/pending - accounts waiting for approval to join the
 // signed-in user's own team. Visible to that team's Squad Leader(s) and to
 // admins (scoped to whatever team the admin themselves belongs to — an

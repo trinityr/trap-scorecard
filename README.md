@@ -25,6 +25,7 @@ backend/
     006_add_substitutes.sql <- run manually to add substitute tracking to scores
     007_add_contact_info.sql <- run manually to add phone/address columns to users
     008_add_google_oauth_and_squad_leader.sql <- run manually to add Google sign-in + Squad Leader/approval columns
+    009_add_team_logo.sql   <- run manually to add the team logo column
   public/
     index.html              <- the scorecard web app: sign-in/register + admin panel + scoring UI
   src/
@@ -36,7 +37,7 @@ backend/
     session.d.ts             <- TypeScript types for the session's logged-in user
     routes/auth.ts          <- POST /api/auth/register, /login, /google, /team, /logout, GET/PUT /me
     routes/admin.ts         <- admin-only: app settings, users, teams, shooters, rounds
-    routes/teams.ts         <- GET /api/teams (public, needed for the registration form)
+    routes/teams.ts         <- GET /api/teams (public, needed for the registration form), PUT /api/teams/:id/logo
     routes/team.ts          <- pending team-join approvals, for Squad Leaders and admins
     routes/rounds.ts        <- POST/GET/DELETE /api/rounds (scoped to your session's team)
     routes/stats.ts         <- GET /api/stats/leaderboard, /api/stats/trends (scoped to your team)
@@ -131,7 +132,12 @@ Admins get an **Admin** tab in the app with:
   the regular New Round / History tabs are. Changing the Team dropdown
   moves the round to that team and re-matches shooter names against its
   roster. Shooter-name and "subbing for" fields autocomplete against the
-  full cross-team roster to cut down on typos.
+  full cross-team roster to cut down on typos. Each shooter row also has
+  its own **Rnd** number — useful when a Read Scoresheet scan (or a manual
+  entry mistake) combined two separate rounds into one saved record: give
+  the rows that actually belong to a different round their own Rnd number
+  and save, and they're split out into their own round record
+  automatically, keeping the same date/yardage/team.
 
 Admins also see a **Team** picker at the top of the New Round tab, so they
 can log a round on behalf of any team, not just their own — the saved
@@ -187,9 +193,12 @@ Behavior:
 Each team can have one or more **Squad Leaders** — a title an admin grants
 from the Users table (or that's granted automatically to whoever creates a
 brand-new team, since nobody else exists yet to grant it). A Squad Leader
-is shown with a small orange "C" badge next to their name around the app,
-and gets a **Team** tab for approving people who've asked to join their
-team.
+is shown with a small orange "C" badge next to their name everywhere it
+appears — Dashboard, Team Leaderboard, Trends legend, History, the
+site-wide scoreboard, and the individual drilldown page — not just the
+session bar and Admin Users table. They also get a **Team** tab for
+approving people who've asked to join their team, and for managing their
+team's logo (see Team logos below).
 
 Whenever someone picks an **existing** team — during registration, on the
 post-Google-sign-in team picker, or any other time a teamless account
@@ -204,6 +213,21 @@ auto-approved and becomes that team's Squad Leader immediately, since
 there's nobody else around yet who could approve them. The very first
 account on the whole app is also auto-approved for the same reason.
 
+### Team logos
+
+A team's Squad Leader (for their own team) or an admin (for any team) can
+upload a logo — from the **Team** tab, or from Admin → Teams. Images are
+resized client-side and stored directly in the database as a PNG data URL,
+same approach as scoresheet photo uploads, so there's no separate object
+storage to configure. Uploading a new logo replaces the old one; there's a
+**Remove logo** option to clear it back to no logo.
+
+The logo shows up as a subtle gradient background behind that team's box
+on the Dashboard's site-wide scoreboard whenever the team, or one of its
+shooters, is the individual/team leader — otherwise the callout falls back
+to its normal plain background. Teams without a logo look exactly like
+they always have.
+
 **If you already had this app running before accounts were added**, run
 this migration once against your existing database before deploying this
 version:
@@ -216,10 +240,10 @@ entered is touched. After that, everyone just registers as normal; the
 first person to do so becomes admin.
 
 **If you already had accounts before the Profile tab, yardage, round
-numbers, substitutes, contact info, Google sign-in, or Squad Leaders were
-added**, run these migrations once against your existing database (all are
-additive — nothing existing is touched, and everyone already on a team
-stays approved so nobody gets locked out):
+numbers, substitutes, contact info, Google sign-in, Squad Leaders, or team
+logos were added**, run these migrations once against your existing
+database (all are additive — nothing existing is touched, and everyone
+already on a team stays approved so nobody gets locked out):
 ```bash
 docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migrations/003_add_user_name.sql
 docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migrations/004_add_yardage.sql
@@ -227,6 +251,7 @@ docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migratio
 docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migrations/006_add_substitutes.sql
 docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migrations/007_add_contact_info.sql
 docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migrations/008_add_google_oauth_and_squad_leader.sql
+docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migrations/009_add_team_logo.sql
 ```
 
 ## Teams
@@ -268,7 +293,10 @@ at once:
   has happened.
 
 Site-wide stats, Trends, and drilldown never roll substitutions up — they
-always reflect who actually pulled the trigger that round.
+always reflect who actually pulled the trigger that round. In the History
+tab, a shooter's name is followed by an asterisk (`*`) whenever that
+appearance was as a substitute for someone else, in addition to the
+existing "SUB for ___" tag.
 
 Click any name in the Leaderboard or the Dashboard's team board to open
 their **drilldown**: rounds shot, average, best round, station-by-station
@@ -285,7 +313,9 @@ deployment — not just your own team. Ranking is by total combined score
 across every round ever logged (so it rewards consistent, frequent
 shooting, not just a single good week). The leading individual and
 leading team are called out prominently at the top, with a top-10 list
-below each.
+below each. If the leading individual's team, or the leading team itself,
+has uploaded a logo, it's shown as a subtle gradient background on that
+callout box (see Team logos below).
 
 ## API
 
@@ -300,6 +330,7 @@ below each.
 - `GET /api/team/pending` — requires being a Squad Leader or admin, lists accounts awaiting approval on your own team
 - `POST /api/team/pending/:id/approve` — Squad Leader or admin, approves a pending teammate
 - `POST /api/team/pending/:id/deny` — Squad Leader or admin, clears the pending account's team so they can pick again
+- `GET /api/team/squad-leaders` — requires sign-in, every Squad Leader across every team as `{ name, team_id }` — used to badge their name everywhere they appear, not just their own team's views
 - `GET /api/admin/settings` / `PUT /api/admin/settings` (now includes `google_client_id`) — admin only
 - `GET /api/admin/users` (includes `phone`, `is_squad_leader`, `team_approved`) / `PUT /api/admin/users/:id` (body: `{ "isAdmin"?, "isSquadLeader"?, "teamApproved"?, "teamId"? }`) / `DELETE /api/admin/users/:id` — admin only
 - `POST /api/admin/teams` — admin only, create a team
@@ -311,9 +342,10 @@ below each.
 - `DELETE /api/admin/shooters/:id` — admin only, also deletes that shooter's score history
 - `GET /api/admin/rounds` — admin only, every round across every team
 - `GET /api/admin/rounds/:id` — admin only, full shooter/score detail for one round, including who subbed for whom
-- `PUT /api/admin/rounds/:id` — admin only, body: `{ "date", "yardage", "roundNumber", "teamId"?, "shooters": [{ "name", "stations", "total", "subFor"? }] }` — replaces the round's date/round number/yardage/scores; passing a different `teamId` moves the round to that team and re-matches shooters against its roster
+- `PUT /api/admin/rounds/:id` — admin only, body: `{ "date", "yardage", "roundNumber", "teamId"?, "shooters": [{ "name", "stations", "total", "subFor"?, "roundNumber"? }] }` — replaces the round's date/round number/yardage/scores; passing a different `teamId` moves the round to that team and re-matches shooters against its roster. If any shooter's own `roundNumber` differs from the round's, those shooters are split out into new round records (same date/yardage/team) instead of being saved onto this one; the response includes `{ ok: true, splitIntoRoundIds: [...] }` listing the newly created round IDs (empty if nothing was split)
 - `DELETE /api/admin/rounds/:id` — admin only, deletes any round regardless of team
-- `GET /api/teams` — list all teams (public, used by the registration form)
+- `GET /api/teams` — list all teams (public, used by the registration form), each including `logo_data`
+- `PUT /api/teams/:id/logo` — requires sign-in as that team's Squad Leader or an admin, body: `{ "logoData": "data:image/...;base64,..." }` to set or `{ "logoData": null }` to clear
 - `POST /api/rounds` — body: `{ "date": "YYYY-MM-DD", "yardage": n or null, "roundNumber": n (default 1), "teamId"? (admin only, logs the round for a different team), "shooters": [{ "name", "stations": [n,n,n,n,n], "total": n, "subFor": "team member's name" or null }] }` — requires sign-in **and an approved team**, scoped to your team automatically (non-admins can't override `teamId`)
 - `GET /api/rounds` — every saved round for your team, each shooter entry includes `subFor` if they were subbing — requires sign-in and an approved team
 - `DELETE /api/rounds/:id` — requires sign-in, only deletes rounds belonging to your own team

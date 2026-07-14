@@ -336,6 +336,16 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
   </section>
 
   <section class="panel" id="panel-team">
+    <div class="card" id="teamLogoCard">
+      <h3>Team logo</h3>
+      <div class="note" style="margin-top:0">Shown as a background behind your team's boxes on the site-wide scoreboard when your team or one of your shooters is leading.</div>
+      <img id="teamLogoPreview" style="max-width:140px;max-height:140px;display:none;border-radius:8px;margin-bottom:10px;object-fit:cover;"/>
+      <div class="row-actions" style="margin-top:0">
+        <label class="btn ghost small" style="cursor:pointer">Upload logo<input type="file" accept="image/*" id="teamLogoInput" style="display:none"/></label>
+        <button class="btn danger small" id="teamLogoRemoveBtn" style="display:none">Remove logo</button>
+      </div>
+      <div class="error" id="teamLogoError"></div>
+    </div>
     <div class="card">
       <h3>Pending team requests</h3>
       <div class="note" style="margin-top:0">People who picked your team but still need approval from a Squad Leader or admin.</div>
@@ -376,7 +386,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     <div class="card admin-users-table">
       <h3>Teams</h3>
       <table class="tbl">
-        <thead><tr><th>Name</th><th></th></tr></thead>
+        <thead><tr><th>Name</th><th>Logo</th><th></th></tr></thead>
         <tbody id="adminTeamsBody"></tbody>
       </table>
       <div class="row-actions">
@@ -669,6 +679,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
 
   async function startApp(){
     await loadWeeks();
+    await loadSquadLeaders();
     $('#draftDate').value = todayISO();
     renderDashboard();
   }
@@ -785,6 +796,47 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     return nums.reduce((a,b)=>a+b,0);
   }
   function todayISO(){ return new Date().toISOString().slice(0,10); }
+
+  // ---------- Squad Leader badge (shown next to their name everywhere) ----------
+  async function loadSquadLeaders(){
+    try{
+      const list = await api('/team/squad-leaders');
+      state.squadLeaders = new Set((list||[]).map(u=> String(u.name||'').trim().toLowerCase()+'|'+u.team_id));
+    }catch(e){ console.error(e); state.squadLeaders = new Set(); }
+  }
+  function slBadge(name, teamId){
+    if(!name || !teamId || !state.squadLeaders) return '';
+    return state.squadLeaders.has(String(name).trim().toLowerCase()+'|'+teamId) ? '<span class="badge-sl" title="Squad Leader">C</span>' : '';
+  }
+
+  // ---------- Shared: resize an uploaded image to a data URL ----------
+  // Used for both team logos here and the scoresheet photo upload above —
+  // this variant is smaller (logos don't need to be huge) and keeps PNG
+  // for transparency instead of JPEG.
+  function resizeImageToDataUrl(file, maxDim, cb){
+    const reader = new FileReader();
+    reader.onload = (ev)=>{
+      const img = new Image();
+      img.onload = ()=>{
+        let w = img.width, h = img.height;
+        if(w>maxDim || h>maxDim){ const scale = maxDim/Math.max(w,h); w=Math.round(w*scale); h=Math.round(h*scale); }
+        const canvas = document.createElement('canvas');
+        canvas.width=w; canvas.height=h;
+        canvas.getContext('2d').drawImage(img,0,0,w,h);
+        cb(canvas.toDataURL('image/png'));
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // Gradient overlay (for text legibility) + a team's logo as the
+  // background-image for a leader-callout box. Empty string (no inline
+  // style) falls back to the callout's plain CSS gradient background.
+  function leaderCalloutStyle(logo){
+    if(!logo) return '';
+    return `background-image:linear-gradient(135deg, rgba(38,40,32,.72), rgba(20,20,15,.88)), url('${logo}');background-size:cover;background-position:center;`;
+  }
 
   function renderDraftTable(){
     const tbody = $('#draftBody');
@@ -916,7 +968,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     el.innerHTML = agg.map((r,i)=>`
       <div class="lb-row clickable" data-name="${escapeAttr(r.name)}">
         <div class="lb-rank">${i+1}</div>
-        <div style="flex:1"><div class="lb-name">${escapeHtml(r.name)}</div><div class="lb-sub">${r.rounds} round${r.rounds===1?'':'s'}${r.subRounds>0? ' ('+r.subRounds+' subbed)':''} · best ${r.best}</div></div>
+        <div style="flex:1"><div class="lb-name">${escapeHtml(r.name)}${slBadge(r.name, state.user.teamId)}</div><div class="lb-sub">${r.rounds} round${r.rounds===1?'':'s'}${r.subRounds>0? ' ('+r.subRounds+' subbed)':''} · best ${r.best}</div></div>
         <div class="lb-avg">${r.avg.toFixed(1)}</div>
       </div>`).join('');
     Array.from(el.querySelectorAll('.lb-row')).forEach(row=>{
@@ -942,7 +994,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     // --- Condensed team leaderboard (top 5) ---
     const sorted = [...agg].sort((a,b)=>b.avg-a.avg).slice(0,5);
     $('#dashboardTeamBoard').innerHTML = sorted.length ? sorted.map((r,i)=>`
-      <div class="mini-row clickable" data-name="${escapeAttr(r.name)}"><span class="mini-rank">${i+1}</span><div class="mini-name">${escapeHtml(r.name)}</div><span class="mini-pts">${r.avg.toFixed(1)}</span></div>
+      <div class="mini-row clickable" data-name="${escapeAttr(r.name)}"><span class="mini-rank">${i+1}</span><div class="mini-name">${escapeHtml(r.name)}${slBadge(r.name, state.user.teamId)}</div><span class="mini-pts">${r.avg.toFixed(1)}</span></div>
     `).join('') : '<div class="empty">No rounds saved yet.</div>';
     Array.from($('#dashboardTeamBoard').querySelectorAll('.mini-row')).forEach(row=>{
       row.addEventListener('click', ()=> openShooterDrilldown(row.dataset.name));
@@ -963,13 +1015,13 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     const topShooter = site.individuals[0];
     const topTeam = site.teams[0];
     $('#siteLeaderCallouts').innerHTML = `
-      <div class="leader-callout">
+      <div class="leader-callout" style="${leaderCalloutStyle(topShooter && topShooter.team_logo)}">
         <div class="lbl">Individual leader</div>
-        <div class="who">${topShooter ? escapeHtml(topShooter.name) : '—'}</div>
+        <div class="who">${topShooter ? escapeHtml(topShooter.name)+slBadge(topShooter.name, topShooter.team_id) : '—'}</div>
         <div class="sub">${topShooter ? escapeHtml(topShooter.team_name) : 'No rounds logged yet'}</div>
         <div class="pts">${topShooter ? topShooter.total_points : '—'} pts</div>
       </div>
-      <div class="leader-callout">
+      <div class="leader-callout" style="${leaderCalloutStyle(topTeam && topTeam.logo)}">
         <div class="lbl">Leading team</div>
         <div class="who">${topTeam ? escapeHtml(topTeam.name) : '—'}</div>
         <div class="sub">${topTeam ? topTeam.rounds + ' rounds logged' : 'No rounds logged yet'}</div>
@@ -977,7 +1029,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
       </div>
     `;
     $('#siteTopShooters').innerHTML = site.individuals.length ? site.individuals.map((s,i)=>`
-      <div class="mini-row"><span class="mini-rank">${i+1}</span><div class="mini-name">${escapeHtml(s.name)}<span class="sub">${escapeHtml(s.team_name)}</span></div><span class="mini-pts">${s.total_points}</span></div>
+      <div class="mini-row"><span class="mini-rank">${i+1}</span><div class="mini-name">${escapeHtml(s.name)}${slBadge(s.name, s.team_id)}<span class="sub">${escapeHtml(s.team_name)}</span></div><span class="mini-pts">${s.total_points}</span></div>
     `).join('') : '<div class="empty">No rounds logged yet.</div>';
     $('#siteTopTeams').innerHTML = site.teams.length ? site.teams.map((t,i)=>`
       <div class="mini-row"><span class="mini-rank">${i+1}</span><div class="mini-name">${escapeHtml(t.name)}<span class="sub">${t.rounds} rounds</span></div><span class="mini-pts">${t.total_points}</span></div>
@@ -992,7 +1044,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     legend.innerHTML = agg.map((r,i)=>{
       const color = COLORS[i % COLORS.length];
       const active = state.trendSelected.has(r.name);
-      return `<div class="chip ${active?'active':''}" style="--dot:${color}" data-name="${escapeAttr(r.name)}"><span class="dot"></span>${escapeHtml(r.name)}</div>`;
+      return `<div class="chip ${active?'active':''}" style="--dot:${color}" data-name="${escapeAttr(r.name)}"><span class="dot"></span>${escapeHtml(r.name)}${slBadge(r.name, state.user.teamId)}</div>`;
     }).join('');
     Array.from(legend.querySelectorAll('.chip')).forEach(chip=>{
       chip.addEventListener('click', ()=>{
@@ -1044,7 +1096,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
         <div class="history-body">
           <table class="tbl">
             <thead><tr><th>Shooter</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>Total</th></tr></thead>
-            <tbody>${(w.shooters||[]).map(s=>`<tr><td>${escapeHtml(s.name)}${s.subFor?` <span class="badge">SUB for ${escapeHtml(s.subFor)}</span>`:''}</td>${[0,1,2,3,4].map(i=>`<td class="mono">${s.stations && s.stations[i]!=null? s.stations[i] : '—'}</td>`).join('')}<td class="total-cell">${s.total!=null?s.total:'—'}</td></tr>`).join('')}</tbody>
+            <tbody>${(w.shooters||[]).map(s=>`<tr><td>${escapeHtml(s.name)}${s.subFor?'*':''}${slBadge(s.name, state.user.teamId)}${s.subFor?` <span class="badge">SUB for ${escapeHtml(s.subFor)}</span>`:''}</td>${[0,1,2,3,4].map(i=>`<td class="mono">${s.stations && s.stations[i]!=null? s.stations[i] : '—'}</td>`).join('')}<td class="total-cell">${s.total!=null?s.total:'—'}</td></tr>`).join('')}</tbody>
           </table>
           <div class="row-actions"><button class="btn danger small" onclick="window.__tscDeleteWeek('${w.key}')">Delete round</button></div>
         </div>
@@ -1101,7 +1153,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
 
   function renderShooterDrilldown(name, rec){
     const safe = rec || {name, rounds:0, subRounds:0, avg:null, best:null, stationAvgs:[null,null,null,null,null], entries:[], totals:[], dates:[]};
-    $('#shooterDrillName').textContent = safe.name;
+    $('#shooterDrillName').innerHTML = escapeHtml(safe.name) + slBadge(safe.name, state.user.teamId);
     $('#shooterDrillMetrics').innerHTML = `
       <div class="metric"><div class="label">Rounds shot</div><div class="value">${safe.rounds}</div></div>
       <div class="metric"><div class="label">Average</div><div class="value">${safe.avg!=null?safe.avg.toFixed(1):'—'}</div></div>
@@ -1170,7 +1222,44 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
   });
 
   // ---------- Team panel (Squad Leader / admin pending approvals) ----------
+  // ---------- Team logo ----------
+  function updateTeamLogoPreview(logoData){
+    const img = $('#teamLogoPreview');
+    const removeBtn = $('#teamLogoRemoveBtn');
+    if(logoData){ img.src = logoData; img.style.display='block'; removeBtn.style.display='inline-block'; }
+    else{ img.style.display='none'; removeBtn.style.display='none'; }
+  }
+  async function loadTeamLogoCard(){
+    if(!state.user.teamId) return;
+    try{
+      const teams = await api('/teams');
+      state.teams = teams;
+      const mine = teams.find(t=>t.id===state.user.teamId);
+      updateTeamLogoPreview(mine && mine.logo_data);
+    }catch(e){ console.error(e); }
+  }
+  $('#teamLogoInput').addEventListener('change', (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    $('#teamLogoError').style.display='none';
+    resizeImageToDataUrl(file, 320, async (dataUrl)=>{
+      try{
+        const team = await api('/teams/'+state.user.teamId+'/logo', {method:'PUT', body: JSON.stringify({logoData: dataUrl})});
+        updateTeamLogoPreview(team.logo_data);
+      }catch(err){ const el = $('#teamLogoError'); el.textContent = err.message; el.style.display='block'; }
+    });
+    e.target.value = '';
+  });
+  $('#teamLogoRemoveBtn').addEventListener('click', async ()=>{
+    $('#teamLogoError').style.display='none';
+    try{
+      const team = await api('/teams/'+state.user.teamId+'/logo', {method:'PUT', body: JSON.stringify({logoData: null})});
+      updateTeamLogoPreview(team.logo_data);
+    }catch(err){ const el = $('#teamLogoError'); el.textContent = err.message; el.style.display='block'; }
+  });
+
   async function loadTeamPanel(){
+    loadTeamLogoCard();
     const el = $('#teamPendingBody');
     el.innerHTML = '<div class="empty">Loading…</div>';
     try{
@@ -1252,6 +1341,10 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     $('#adminTeamsBody').innerHTML = teams.map(t=>`
       <tr>
         <td><input type="text" value="${escapeAttr(t.name)}" onchange="window.__tscRenameTeam(${t.id}, this.value)"/></td>
+        <td>
+          ${t.logo_data ? `<img src="${t.logo_data}" style="width:30px;height:30px;object-fit:cover;border-radius:5px;vertical-align:middle;margin-right:6px;"/><button class="rm" style="font-size:12px" onclick="window.__tscClearTeamLogo(${t.id})" title="Remove logo">✕</button>` : ''}
+          <label class="btn ghost small" style="cursor:pointer">${t.logo_data?'Change':'Upload'}<input type="file" accept="image/*" style="display:none" onchange="window.__tscUploadTeamLogo(${t.id}, this)"/></label>
+        </td>
         <td><button class="rm" onclick="window.__tscDeleteTeam(${t.id})">✕</button></td>
       </tr>`).join('');
   }
@@ -1265,6 +1358,19 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
   window.__tscDeleteTeam = async function(id){
     if(!confirm('Delete this team? This also deletes every shooter, round, and score that belongs to it. This cannot be undone.')) return;
     try{ await api('/admin/teams/'+id, {method:'DELETE'}); loadAdminPanel(); }
+    catch(e){ const el = $('#adminTeamsError'); el.textContent = e.message; el.style.display='block'; }
+  };
+  window.__tscUploadTeamLogo = function(teamId, inputEl){
+    const file = inputEl.files[0];
+    if(!file) return;
+    resizeImageToDataUrl(file, 320, async (dataUrl)=>{
+      try{ await api('/teams/'+teamId+'/logo', {method:'PUT', body: JSON.stringify({logoData: dataUrl})}); loadAdminPanel(); }
+      catch(e){ const el = $('#adminTeamsError'); el.textContent = e.message; el.style.display='block'; }
+    });
+    inputEl.value = '';
+  };
+  window.__tscClearTeamLogo = async function(teamId){
+    try{ await api('/teams/'+teamId+'/logo', {method:'PUT', body: JSON.stringify({logoData: null})}); loadAdminPanel(); }
     catch(e){ const el = $('#adminTeamsError'); el.textContent = e.message; el.style.display='block'; }
   };
 
@@ -1339,16 +1445,17 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
 
   function renderAdminRoundEditor(id, detail){
     const body = $('#adminRoundBody-'+id);
-    state.adminEditingRound = { id, draft: { shooters: detail.shooters.map(s=>({name:s.name, stations:s.stations.slice(), total:s.total, subFor:s.subFor||null})) } };
+    state.adminEditingRound = { id, draft: { shooters: detail.shooters.map(s=>({name:s.name, stations:s.stations.slice(), total:s.total, subFor:s.subFor||null, roundNumber:detail.roundNumber||1})) } };
     body.innerHTML = `
       <div class="field"><label>Team</label><select id="adminRoundTeam-${id}">${(state.teams||[]).map(t=>`<option value="${t.id}" ${t.id===detail.teamId?'selected':''}>${escapeHtml(t.name)}</option>`).join('')}</select></div>
       <div class="field"><label>Round date</label><input type="date" id="adminRoundDate-${id}" value="${detail.date}"/></div>
       <div class="field"><label>Round #</label><input type="number" min="1" max="9" id="adminRoundNumber-${id}" value="${detail.roundNumber||1}"/></div>
       <div class="field"><label>Yardage</label><input type="number" min="16" max="27" id="adminRoundYardage-${id}" value="${detail.yardage!=null?detail.yardage:''}"/></div>
       <div class="note" style="margin-top:0">Changing the team moves this round and re-matches shooter names against that team's roster.</div>
+      <div class="note" style="margin-top:0">Give a shooter a different Rnd number to split them out into a separate round on save — useful when a Read Scorecard scan combined two rounds into one.</div>
       <div style="overflow-x:auto">
         <table class="tbl">
-          <thead><tr><th style="min-width:120px">Shooter</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>Total</th><th style="min-width:120px">Subbing for</th><th></th></tr></thead>
+          <thead><tr><th style="min-width:120px">Shooter</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>Total</th><th style="min-width:120px">Subbing for</th><th>Rnd</th><th></th></tr></thead>
           <tbody id="adminRoundTableBody-${id}"></tbody>
         </table>
       </div>
@@ -1371,12 +1478,14 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
         ${[0,1,2,3,4].map(si=>`<td class="station-cell"><input type="number" min="0" max="5" value="${s.stations[si]!=null?s.stations[si]:''}" oninput="window.__tscAdminUpdateStation(${id},${idx},${si},this.value)"/></td>`).join('')}
         <td class="total-cell" id="adminRoundTotal-${id}-${idx}">${s.total!=null?s.total:'—'}</td>
         <td><input class="name-input" list="adminShooterNames" placeholder="—" value="${escapeAttr(s.subFor||'')}" oninput="window.__tscAdminUpdateSubFor(${id},${idx},this.value)"/></td>
+        <td class="station-cell"><input type="number" min="1" max="9" value="${s.roundNumber||1}" oninput="window.__tscAdminUpdateRowRound(${id},${idx},this.value)"/></td>
         <td><button class="rm" onclick="window.__tscAdminRemoveRow(${id},${idx})">✕</button></td>
       </tr>`).join('');
   }
 
   window.__tscAdminUpdateField = function(id, idx, value){ state.adminEditingRound.draft.shooters[idx].name = value; };
   window.__tscAdminUpdateSubFor = function(id, idx, value){ state.adminEditingRound.draft.shooters[idx].subFor = value; };
+  window.__tscAdminUpdateRowRound = function(id, idx, value){ state.adminEditingRound.draft.shooters[idx].roundNumber = value===''? 1 : Math.max(1, Number(value)); };
   window.__tscAdminUpdateStation = function(id, idx, si, value){
     const draft = state.adminEditingRound.draft;
     const n = value===''? null : Math.max(0, Math.min(5, Number(value)));
@@ -1390,7 +1499,9 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     }
   };
   window.__tscAdminAddRow = function(id){
-    state.adminEditingRound.draft.shooters.push({name:'', stations:[null,null,null,null,null], total:null, subFor:null});
+    const draft = state.adminEditingRound.draft;
+    const defaultRound = (draft.shooters[0] && draft.shooters[0].roundNumber) || 1;
+    draft.shooters.push({name:'', stations:[null,null,null,null,null], total:null, subFor:null, roundNumber:defaultRound});
     renderAdminRoundTable(id);
   };
   window.__tscAdminRemoveRow = function(id, idx){
@@ -1406,12 +1517,15 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     const roundNumberVal = $('#adminRoundNumber-'+id).value;
     const roundNumber = roundNumberVal===''? 1 : Number(roundNumberVal);
     const teamId = Number($('#adminRoundTeam-'+id).value);
-    const shooters = draft.shooters.filter(s=>s.name && s.name.trim()).map(s=>({name:s.name.trim(), stations:s.stations, total:s.total, subFor: s.subFor && s.subFor.trim() ? s.subFor.trim() : null}));
+    const shooters = draft.shooters.filter(s=>s.name && s.name.trim()).map(s=>({name:s.name.trim(), stations:s.stations, total:s.total, subFor: s.subFor && s.subFor.trim() ? s.subFor.trim() : null, roundNumber: s.roundNumber||roundNumber}));
     const errEl = $('#adminRoundError-'+id);
     errEl.style.display='none';
     if(!date){ errEl.textContent='A round date is required.'; errEl.style.display='block'; return; }
     try{
-      await api('/admin/rounds/'+id, {method:'PUT', body: JSON.stringify({date, yardage, roundNumber, teamId, shooters})});
+      const result = await api('/admin/rounds/'+id, {method:'PUT', body: JSON.stringify({date, yardage, roundNumber, teamId, shooters})});
+      if(result.splitIntoRoundIds && result.splitIntoRoundIds.length){
+        alert('Split into '+(result.splitIntoRoundIds.length+1)+' separate rounds based on the Rnd numbers entered.');
+      }
       loadAdminPanel();
     }catch(e){ errEl.textContent = e.message; errEl.style.display='block'; }
   };

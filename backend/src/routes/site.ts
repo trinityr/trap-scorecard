@@ -17,12 +17,13 @@ router.get("/leaderboard", async (_req: Request, res: Response) => {
         sh.name,
         t.id AS team_id,
         t.name AS team_name,
+        t.logo_data AS team_logo,
         SUM(s.total)::int AS total_points,
         COUNT(*)::int AS rounds
       FROM scores s
       JOIN shooters sh ON sh.id = s.shooter_id
       JOIN teams t ON t.id = sh.team_id
-      GROUP BY sh.id, sh.name, t.id, t.name
+      GROUP BY sh.id, sh.name, t.id, t.name, t.logo_data
       ORDER BY total_points DESC
       LIMIT 10
     `);
@@ -31,12 +32,13 @@ router.get("/leaderboard", async (_req: Request, res: Response) => {
       SELECT
         t.id,
         t.name,
+        t.logo_data AS logo,
         SUM(s.total)::int AS total_points,
         COUNT(DISTINCT r.id)::int AS rounds
       FROM scores s
       JOIN rounds r ON r.id = s.round_id
       JOIN teams t ON t.id = r.team_id
-      GROUP BY t.id, t.name
+      GROUP BY t.id, t.name, t.logo_data
       ORDER BY total_points DESC
       LIMIT 10
     `);

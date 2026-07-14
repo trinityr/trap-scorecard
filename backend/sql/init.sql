@@ -1,6 +1,9 @@
 CREATE TABLE IF NOT EXISTS teams (
   id SERIAL PRIMARY KEY,
-  name TEXT UNIQUE NOT NULL
+  name TEXT UNIQUE NOT NULL,
+  -- Optional team logo, stored as a base64 data URL. Used as a gradient
+  -- background behind the site-wide scoreboard's leader callouts.
+  logo_data TEXT
 );
 
 CREATE TABLE IF NOT EXISTS users (

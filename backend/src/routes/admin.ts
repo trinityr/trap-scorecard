@@ -336,6 +336,47 @@ router.get("/rounds/:id", async (req: Request, res: Response) => {
   }
 });
 
+// Shared by PUT /rounds/:id below: upserts each shooter (and their
+// "subbing for" target, if any) against teamId's roster, then inserts
+// their score row for roundId. Pulled out so the same logic can run once
+// per round when an edit splits one saved round into several.
+async function insertScoresForShooters(client: any, roundId: number, teamId: number, shooters: any[]) {
+  for (const shooter of shooters) {
+    const name = String(shooter?.name || "").trim();
+    if (!name) continue;
+    const stations = Array.isArray(shooter.stations) ? shooter.stations : [null, null, null, null, null];
+    const nums = stations.filter((n: any) => typeof n === "number");
+    const total = shooter.total ?? (nums.length ? nums.reduce((a: number, b: number) => a + b, 0) : null);
+    if (total == null) continue;
+
+    const shooterResult = await client.query(
+      `INSERT INTO shooters (team_id, name) VALUES ($1, $2)
+       ON CONFLICT (team_id, name) DO UPDATE SET name = EXCLUDED.name
+       RETURNING id`,
+      [teamId, name]
+    );
+    const shooterId = shooterResult.rows[0].id;
+
+    let subForShooterId: number | null = null;
+    const subForName = String(shooter?.subFor || "").trim();
+    if (subForName && subForName.toLowerCase() !== name.toLowerCase()) {
+      const subResult = await client.query(
+        `INSERT INTO shooters (team_id, name) VALUES ($1, $2)
+         ON CONFLICT (team_id, name) DO UPDATE SET name = EXCLUDED.name
+         RETURNING id`,
+        [teamId, subForName]
+      );
+      subForShooterId = subResult.rows[0].id;
+    }
+
+    await client.query(
+      `INSERT INTO scores (round_id, shooter_id, sub_for_shooter_id, station_1, station_2, station_3, station_4, station_5, total)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [roundId, shooterId, subForShooterId, stations[0], stations[1], stations[2], stations[3], stations[4], total]
+    );
+  }
+}
+
 // PUT /api/admin/rounds/:id - replace a round's date, round number, yardage,
 // team, and full set of shooter scores (including who subbed for whom).
 // If teamId is provided and differs from the round's current team, the
@@ -343,13 +384,30 @@ router.get("/rounds/:id", async (req: Request, res: Response) => {
 // is resolved/created against the NEW team's roster — same as reassigning
 // a shooter's team elsewhere in the admin panel. All old score rows for
 // the round are replaced with the new set either way.
+//
+// Each shooter in the body may carry its own optional roundNumber (the
+// admin editor's per-row "Rnd" column, same idea as New Round). Rows are
+// grouped by that number: the lowest group reuses this round's existing
+// id, and any additional groups become brand-new round records with the
+// same date/yardage/team. This is how an admin retroactively splits a
+// round that the Read Scoresheet extractor (or a combined manual entry)
+// accidentally merged into one record.
 router.put("/rounds/:id", async (req: Request, res: Response) => {
   const { date, yardage, roundNumber, teamId: requestedTeamId, shooters } = req.body || {};
   if (!date || !Array.isArray(shooters)) {
     return res.status(400).json({ error: "Request needs a date and a shooters array." });
   }
   const cleanYardage = yardage != null && yardage !== "" ? Number(yardage) : null;
-  const cleanRoundNumber = roundNumber != null && roundNumber !== "" ? Number(roundNumber) : 1;
+  const defaultRoundNumber = roundNumber != null && roundNumber !== "" ? Number(roundNumber) : 1;
+
+  const groups = new Map<number, any[]>();
+  for (const shooter of shooters) {
+    const rnd = shooter?.roundNumber != null && shooter.roundNumber !== "" ? Number(shooter.roundNumber) : defaultRoundNumber;
+    if (!groups.has(rnd)) groups.set(rnd, []);
+    groups.get(rnd)!.push(shooter);
+  }
+  const roundNumbers = Array.from(groups.keys()).sort((a, b) => a - b);
+  if (roundNumbers.length === 0) roundNumbers.push(defaultRoundNumber);
 
   let client;
   try {
@@ -364,52 +422,30 @@ router.put("/rounds/:id", async (req: Request, res: Response) => {
     }
     const teamId = requestedTeamId ? Number(requestedTeamId) : currentTeamId;
 
+    const firstRoundNumber = roundNumbers[0];
     await client.query("UPDATE rounds SET round_date = $1, yardage = $2, round_number = $3, team_id = $4 WHERE id = $5", [
       date,
       cleanYardage,
-      cleanRoundNumber,
+      firstRoundNumber,
       teamId,
       req.params.id,
     ]);
     await client.query("DELETE FROM scores WHERE round_id = $1", [req.params.id]);
+    await insertScoresForShooters(client, Number(req.params.id), teamId, groups.get(firstRoundNumber) || []);
 
-    for (const shooter of shooters) {
-      const name = String(shooter?.name || "").trim();
-      if (!name) continue;
-      const stations = Array.isArray(shooter.stations) ? shooter.stations : [null, null, null, null, null];
-      const nums = stations.filter((n: any) => typeof n === "number");
-      const total = shooter.total ?? (nums.length ? nums.reduce((a: number, b: number) => a + b, 0) : null);
-      if (total == null) continue;
-
-      const shooterResult = await client.query(
-        `INSERT INTO shooters (team_id, name) VALUES ($1, $2)
-         ON CONFLICT (team_id, name) DO UPDATE SET name = EXCLUDED.name
-         RETURNING id`,
-        [teamId, name]
+    const splitIntoRoundIds: number[] = [];
+    for (const rnd of roundNumbers.slice(1)) {
+      const newRoundResult = await client.query(
+        "INSERT INTO rounds (team_id, round_date, yardage, round_number) VALUES ($1, $2, $3, $4) RETURNING id",
+        [teamId, date, cleanYardage, rnd]
       );
-      const shooterId = shooterResult.rows[0].id;
-
-      let subForShooterId: number | null = null;
-      const subForName = String(shooter?.subFor || "").trim();
-      if (subForName && subForName.toLowerCase() !== name.toLowerCase()) {
-        const subResult = await client.query(
-          `INSERT INTO shooters (team_id, name) VALUES ($1, $2)
-           ON CONFLICT (team_id, name) DO UPDATE SET name = EXCLUDED.name
-           RETURNING id`,
-          [teamId, subForName]
-        );
-        subForShooterId = subResult.rows[0].id;
-      }
-
-      await client.query(
-        `INSERT INTO scores (round_id, shooter_id, sub_for_shooter_id, station_1, station_2, station_3, station_4, station_5, total)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-        [req.params.id, shooterId, subForShooterId, stations[0], stations[1], stations[2], stations[3], stations[4], total]
-      );
+      const newRoundId = newRoundResult.rows[0].id;
+      splitIntoRoundIds.push(newRoundId);
+      await insertScoresForShooters(client, newRoundId, teamId, groups.get(rnd) || []);
     }
 
     await client.query("COMMIT");
-    res.json({ ok: true });
+    res.json({ ok: true, splitIntoRoundIds });
   } catch (err) {
     if (client) {
       try {
