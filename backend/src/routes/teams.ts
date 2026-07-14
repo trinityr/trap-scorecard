@@ -10,7 +10,12 @@ const router = Router();
 // or via /api/admin/teams (admin-only) — not here.
 router.get("/", async (_req: Request, res: Response) => {
   try {
-    const result = await pool.query("SELECT id, name, logo_data FROM teams ORDER BY name ASC");
+    const result = await pool.query(`
+      SELECT t.id, t.name, t.logo_data, t.league_id, l.name AS league_name
+      FROM teams t
+      LEFT JOIN leagues l ON l.id = t.league_id
+      ORDER BY t.name ASC
+    `);
     res.json(result.rows);
   } catch (err) {
     console.error(err);

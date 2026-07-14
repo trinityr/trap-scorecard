@@ -17,6 +17,14 @@ router.get("/settings", async (_req: Request, res: Response) => {
       // Not secret (it's meant to be embedded in the frontend), so this is
       // returned as-is rather than masked like the Anthropic key above.
       google_client_id: settings.google_client_id || process.env.GOOGLE_CLIENT_ID || "",
+      // SMTP, used to email Squad Leaders/admins about pending team-join
+      // requests. Host/port/user/from aren't secret; the password is
+      // masked the same way the Anthropic key is.
+      smtp_host: settings.smtp_host || process.env.SMTP_HOST || "",
+      smtp_port: settings.smtp_port || process.env.SMTP_PORT || "",
+      smtp_user: settings.smtp_user || process.env.SMTP_USER || "",
+      smtp_from: settings.smtp_from || process.env.SMTP_FROM || "",
+      smtp_pass_set: Boolean(settings.smtp_pass || process.env.SMTP_PASS),
     });
   } catch (err) {
     console.error(err);
@@ -26,7 +34,10 @@ router.get("/settings", async (_req: Request, res: Response) => {
 
 // PUT /api/admin/settings
 router.put("/settings", async (req: Request, res: Response) => {
-  const { anthropic_api_key, cors_origin, allow_registration, google_client_id } = req.body || {};
+  const {
+    anthropic_api_key, cors_origin, allow_registration, google_client_id,
+    smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from,
+  } = req.body || {};
   try {
     if (typeof anthropic_api_key === "string" && anthropic_api_key.trim()) {
       await setSetting("anthropic_api_key", anthropic_api_key.trim());
@@ -39,6 +50,21 @@ router.put("/settings", async (req: Request, res: Response) => {
     }
     if (typeof google_client_id === "string") {
       await setSetting("google_client_id", google_client_id.trim());
+    }
+    if (typeof smtp_host === "string") {
+      await setSetting("smtp_host", smtp_host.trim());
+    }
+    if (typeof smtp_port === "string") {
+      await setSetting("smtp_port", smtp_port.trim());
+    }
+    if (typeof smtp_user === "string") {
+      await setSetting("smtp_user", smtp_user.trim());
+    }
+    if (typeof smtp_pass === "string" && smtp_pass.trim()) {
+      await setSetting("smtp_pass", smtp_pass.trim());
+    }
+    if (typeof smtp_from === "string") {
+      await setSetting("smtp_from", smtp_from.trim());
     }
     res.json({ ok: true });
   } catch (err) {
@@ -135,16 +161,27 @@ router.post("/teams", async (req: Request, res: Response) => {
   }
 });
 
-// PUT /api/admin/teams/:id - rename a team
+// PUT /api/admin/teams/:id - rename a team and/or assign/clear its League.
+// leagueId is optional: omit it entirely to leave the league untouched,
+// pass a number to assign, or pass null to clear it.
 router.put("/teams/:id", async (req: Request, res: Response) => {
   const name = String(req.body?.name || "").trim();
   if (!name) {
     return res.status(400).json({ error: "Team name is required." });
   }
+  const { leagueId } = req.body || {};
+  const fields = ["name = $1"];
+  const values: any[] = [name];
+  let i = 2;
+  if (leagueId !== undefined) {
+    fields.push(`league_id = $${i++}`);
+    values.push(leagueId || null);
+  }
   try {
+    values.push(req.params.id);
     const result = await pool.query(
-      "UPDATE teams SET name = $1 WHERE id = $2 RETURNING id, name",
-      [name, req.params.id]
+      `UPDATE teams SET ${fields.join(", ")} WHERE id = $${i} RETURNING id, name, league_id`,
+      values
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Team not found." });
@@ -177,6 +214,100 @@ router.delete("/teams/:id", async (req: Request, res: Response) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Could not delete team. Make sure no rounds or shooters reference it." });
+  }
+});
+
+// ---------- Admin: Leagues ----------
+// A League is an optional grouping teams can belong to (many teams per
+// league, one league per team) — info, location, contact, schedule, and
+// cost breakdown, shown in the app's League tab. Built for scalability:
+// this deployment might only ever have one league, but the model supports
+// several from day one.
+
+// POST /api/admin/leagues
+router.post("/leagues", async (req: Request, res: Response) => {
+  const name = String(req.body?.name || "").trim();
+  if (!name) {
+    return res.status(400).json({ error: "League name is required." });
+  }
+  const { location, contactName, contactEmail, contactPhone, scheduleText, costsText, description } = req.body || {};
+  try {
+    const result = await pool.query(
+      `INSERT INTO leagues (name, location, contact_name, contact_email, contact_phone, schedule_text, costs_text, description)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, name, location, contact_name, contact_email, contact_phone, schedule_text, costs_text, description`,
+      [
+        name,
+        String(location || "").trim() || null,
+        String(contactName || "").trim() || null,
+        String(contactEmail || "").trim() || null,
+        String(contactPhone || "").trim() || null,
+        String(scheduleText || "").trim() || null,
+        String(costsText || "").trim() || null,
+        String(description || "").trim() || null,
+      ]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err: any) {
+    if (err?.code === "23505") {
+      return res.status(409).json({ error: "A league with that name already exists." });
+    }
+    console.error(err);
+    res.status(500).json({ error: "Could not create league." });
+  }
+});
+
+// PUT /api/admin/leagues/:id - full replace of a league's info fields
+router.put("/leagues/:id", async (req: Request, res: Response) => {
+  const name = String(req.body?.name || "").trim();
+  if (!name) {
+    return res.status(400).json({ error: "League name is required." });
+  }
+  const { location, contactName, contactEmail, contactPhone, scheduleText, costsText, description } = req.body || {};
+  try {
+    const result = await pool.query(
+      `UPDATE leagues SET name = $1, location = $2, contact_name = $3, contact_email = $4,
+         contact_phone = $5, schedule_text = $6, costs_text = $7, description = $8
+       WHERE id = $9
+       RETURNING id, name, location, contact_name, contact_email, contact_phone, schedule_text, costs_text, description`,
+      [
+        name,
+        String(location || "").trim() || null,
+        String(contactName || "").trim() || null,
+        String(contactEmail || "").trim() || null,
+        String(contactPhone || "").trim() || null,
+        String(scheduleText || "").trim() || null,
+        String(costsText || "").trim() || null,
+        String(description || "").trim() || null,
+        req.params.id,
+      ]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "League not found." });
+    }
+    res.json(result.rows[0]);
+  } catch (err: any) {
+    if (err?.code === "23505") {
+      return res.status(409).json({ error: "A league with that name already exists." });
+    }
+    console.error(err);
+    res.status(500).json({ error: "Could not update league." });
+  }
+});
+
+// DELETE /api/admin/leagues/:id - teams pointing at this league just have
+// their league_id cleared (ON DELETE SET NULL), so deleting a league never
+// touches any team, shooter, round, or score data.
+router.delete("/leagues/:id", async (req: Request, res: Response) => {
+  try {
+    const result = await pool.query("DELETE FROM leagues WHERE id = $1", [req.params.id]);
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "League not found." });
+    }
+    res.status(204).send();
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not delete league." });
   }
 });
 

@@ -1,9 +1,24 @@
+CREATE TABLE IF NOT EXISTS leagues (
+  id SERIAL PRIMARY KEY,
+  name TEXT UNIQUE NOT NULL,
+  location TEXT,
+  contact_name TEXT,
+  contact_email TEXT,
+  contact_phone TEXT,
+  schedule_text TEXT,
+  costs_text TEXT,
+  description TEXT
+);
+
 CREATE TABLE IF NOT EXISTS teams (
   id SERIAL PRIMARY KEY,
   name TEXT UNIQUE NOT NULL,
   -- Optional team logo, stored as a base64 data URL. Used as a gradient
   -- background behind the site-wide scoreboard's leader callouts.
-  logo_data TEXT
+  logo_data TEXT,
+  -- Optional: which League this team competes in. A league can host many
+  -- teams; a team belongs to at most one league.
+  league_id INTEGER REFERENCES leagues(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS users (
@@ -88,6 +103,7 @@ CREATE TABLE IF NOT EXISTS scores (
   total SMALLINT NOT NULL
 );
 
+CREATE INDEX IF NOT EXISTS idx_teams_league ON teams(league_id);
 CREATE INDEX IF NOT EXISTS idx_shooters_team ON shooters(team_id);
 CREATE INDEX IF NOT EXISTS idx_rounds_team ON rounds(team_id);
 CREATE INDEX IF NOT EXISTS idx_users_team ON users(team_id);

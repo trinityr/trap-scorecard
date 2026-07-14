@@ -3,8 +3,44 @@ import { OAuth2Client } from "google-auth-library";
 import { pool } from "../db";
 import { hashPassword, verifyPassword, requireAuth } from "../auth";
 import { getSetting } from "../settings";
+import { sendMail } from "../email";
 
 const router = Router();
+
+// Emails that team's Squad Leaders (falling back to admins if the team
+// somehow has no Squad Leader yet) that someone new is waiting on their
+// approval. Fire-and-forget from the caller's perspective — sendMail()
+// itself never throws, so this never blocks or fails the request that
+// triggered it.
+async function notifyTeamOfPendingRequest(teamId: number, applicantEmail: string, applicantName: string | null): Promise<void> {
+  try {
+    const teamResult = await pool.query("SELECT name FROM teams WHERE id = $1", [teamId]);
+    const teamName = teamResult.rows[0]?.name || "your team";
+
+    let recipients = await pool.query(
+      "SELECT email FROM users WHERE team_id = $1 AND is_squad_leader = true",
+      [teamId]
+    );
+    if (recipients.rows.length === 0) {
+      recipients = await pool.query(
+        "SELECT email FROM users WHERE team_id = $1 AND is_admin = true",
+        [teamId]
+      );
+    }
+    const to = recipients.rows.map((r) => r.email).filter(Boolean);
+    if (to.length === 0) return;
+
+    const who = applicantName ? `${applicantName} (${applicantEmail})` : applicantEmail;
+    await sendMail(
+      to,
+      `Trap Scorecard: ${who} wants to join ${teamName}`,
+      `${who} just requested to join ${teamName} on Trap Scorecard and is waiting for approval.\n\nSign in and open the Team tab to approve or deny the request.`,
+      `<p><b>${who}</b> just requested to join <b>${teamName}</b> on Trap Scorecard and is waiting for approval.</p><p>Sign in and open the <b>Team</b> tab to approve or deny the request.</p>`
+    );
+  } catch (err) {
+    console.error("[email] Could not notify team about pending request:", err);
+  }
+}
 
 // Shared session-shape builder so /login, /register, /google, and /team all
 // produce an identical req.session.user object.
@@ -78,18 +114,19 @@ router.post("/register", async (req: Request, res: Response) => {
     } else if (teamId) {
       teamIdToUse = Number(teamId);
     }
-
-    if (!teamIdToUse) {
-      await client.query("ROLLBACK");
-      return res.status(400).json({ error: "Pick an existing team or create a new one." });
-    }
+    // teamIdToUse staying null is fine — team is optional at registration
+    // now. A teamless account signs in and browses in view-only mode, with
+    // a "Join a Team" tab to pick one whenever they're ready.
 
     // Whoever creates a brand-new team is auto-approved and becomes its
     // Squad Leader (nobody else exists yet who could approve them). Joining
     // an existing team needs a Squad Leader or admin to approve the
     // request — unless this is the very first account on the whole app,
-    // which is also auto-approved for the same reason.
-    const teamApproved = isFirstUser || createdNewTeam;
+    // which is also auto-approved for the same reason. Skipping team
+    // selection entirely is also just "approved" — team_approved has no
+    // real meaning without a team_id, since requireApprovedTeam blocks on
+    // the missing team first either way.
+    const teamApproved = isFirstUser || createdNewTeam || !teamIdToUse;
     const isSquadLeader = createdNewTeam;
 
     const passwordHash = await hashPassword(String(password));
@@ -106,6 +143,10 @@ router.post("/register", async (req: Request, res: Response) => {
     const teamName = await lookupTeamName(user.team_id);
     req.session.user = buildSessionUser(user, teamName);
     res.status(201).json(req.session.user);
+
+    if (teamIdToUse && !createdNewTeam && !teamApproved) {
+      notifyTeamOfPendingRequest(teamIdToUse, cleanEmail, cleanName);
+    }
   } catch (err) {
     if (client) {
       try {
@@ -318,6 +359,10 @@ router.post("/team", requireAuth, async (req: Request, res: Response) => {
     const teamName = await lookupTeamName(user.team_id);
     req.session.user = buildSessionUser(user, teamName);
     res.json(req.session.user);
+
+    if (!createdNewTeam && !teamApproved) {
+      notifyTeamOfPendingRequest(teamIdToUse, user.email, user.name);
+    }
   } catch (err) {
     if (client) {
       try {

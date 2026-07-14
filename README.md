@@ -26,6 +26,7 @@ backend/
     007_add_contact_info.sql <- run manually to add phone/address columns to users
     008_add_google_oauth_and_squad_leader.sql <- run manually to add Google sign-in + Squad Leader/approval columns
     009_add_team_logo.sql   <- run manually to add the team logo column
+    010_add_leagues.sql     <- run manually to add the leagues table + teams.league_id
   public/
     index.html              <- the scorecard web app: sign-in/register + admin panel + scoring UI
   src/
@@ -34,11 +35,13 @@ backend/
     types.ts
     auth.ts                <- password hashing, requireAuth/requireAdmin/requireApprovedTeam middleware
     settings.ts             <- DB-backed runtime settings (falls back to .env)
+    email.ts                <- nodemailer wrapper, SMTP config from DB settings (falls back to .env), never throws
     session.d.ts             <- TypeScript types for the session's logged-in user
-    routes/auth.ts          <- POST /api/auth/register, /login, /google, /team, /logout, GET/PUT /me
-    routes/admin.ts         <- admin-only: app settings, users, teams, shooters, rounds
+    routes/auth.ts          <- POST /api/auth/register, /login, /google, /team, /logout, GET/PUT /me; emails the team's Squad Leaders/admins on a pending join request
+    routes/admin.ts         <- admin-only: app settings (incl. SMTP), users, teams, leagues, shooters, rounds
     routes/teams.ts         <- GET /api/teams (public, needed for the registration form), PUT /api/teams/:id/logo
     routes/team.ts          <- pending team-join approvals, for Squad Leaders and admins
+    routes/leagues.ts       <- GET /api/leagues (signed-in, no team required — browsable while teamless)
     routes/rounds.ts        <- POST/GET/DELETE /api/rounds (scoped to your session's team)
     routes/stats.ts         <- GET /api/stats/leaderboard, /api/stats/trends (scoped to your team)
     routes/site.ts          <- GET /api/site/leaderboard (cross-team scoreboard)
@@ -240,10 +243,10 @@ entered is touched. After that, everyone just registers as normal; the
 first person to do so becomes admin.
 
 **If you already had accounts before the Profile tab, yardage, round
-numbers, substitutes, contact info, Google sign-in, Squad Leaders, or team
-logos were added**, run these migrations once against your existing
-database (all are additive — nothing existing is touched, and everyone
-already on a team stays approved so nobody gets locked out):
+numbers, substitutes, contact info, Google sign-in, Squad Leaders, team
+logos, or Leagues were added**, run these migrations once against your
+existing database (all are additive — nothing existing is touched, and
+everyone already on a team stays approved so nobody gets locked out):
 ```bash
 docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migrations/003_add_user_name.sql
 docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migrations/004_add_yardage.sql
@@ -252,6 +255,7 @@ docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migratio
 docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migrations/007_add_contact_info.sql
 docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migrations/008_add_google_oauth_and_squad_leader.sql
 docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migrations/009_add_team_logo.sql
+docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migrations/010_add_leagues.sql
 ```
 
 ## Teams
@@ -317,12 +321,69 @@ below each. If the leading individual's team, or the leading team itself,
 has uploaded a logo, it's shown as a subtle gradient background on that
 callout box (see Team logos below).
 
+The header's station-accuracy arc always reflects whatever you're
+currently looking at: your own team by default, or a single shooter's
+own numbers when you're on their drilldown page — it swaps back the
+moment you navigate away.
+
+## Email alerts on pending team-join requests
+
+Optional. When someone registers for (or later switches to) an existing
+team, that team's Squad Leaders are emailed so they know to go approve
+or deny the request from the **Team** tab — falling back to the team's
+admins if it has no Squad Leader yet. Nothing else about the approval
+flow changes; this is purely a notification.
+
+Email is off until you configure SMTP in **Admin → App settings** (host,
+port, username, password, and a From address like
+`team@trapscores.yourdomain.com`). Until then, the app just logs a note
+to the container logs (`docker compose logs api`) instead of sending
+anything — registration and team-join requests work exactly the same
+either way, since a missing or failing SMTP config never blocks the
+request that triggered it. You can also set `SMTP_HOST`, `SMTP_PORT`,
+`SMTP_USER`, `SMTP_PASS`, and `SMTP_FROM` in `.env` as fallback defaults,
+same pattern as `ANTHROPIC_API_KEY` and `GOOGLE_CLIENT_ID`.
+
+## Light/dark theme
+
+A toggle button in the top-right corner switches between the app's
+default dark theme and a light theme. The choice is remembered per
+browser (`localStorage`) and applies immediately, no reload needed.
+
+## Leagues
+
+Teams can optionally belong to a **League** — a separate entity with its
+own name, location, contact info, schedule, and cost breakdown, intended
+for deployments serving multiple clubs/teams across different leagues.
+Every signed-in user (including teamless ones — see below) gets a
+**League** tab listing every league on the deployment, with their own
+team's league (if any) pinned to the top.
+
+Admins manage leagues from **Admin → Leagues** (create, edit, delete) and
+assign a team to a league from the League dropdown in **Admin → Teams**.
+Deleting a league just clears the assignment on any team that had it —
+nothing else about those teams is touched. A team with no league assigned
+works exactly as before; leagues are entirely optional.
+
+## Browsing without a team
+
+You can now sign in (or register) without picking a team right away —
+registration has a "Skip for now" option, and Google sign-in already
+worked this way for brand-new accounts. A teamless account can still see
+the site-wide scoreboard on the Dashboard and browse the League tab, but
+New Round, Leaderboard, Trends, and History are hidden until they join a
+team, since there's no team data to show. A dedicated **Join a team** tab
+appears right after Dashboard for exactly this — pick an existing team
+(same pending-approval flow as before) or start a new one (auto-approved,
+makes you its Squad Leader). Everything else about a user's permissions
+(Profile, etc.) is unaffected.
+
 ## API
 
-- `POST /api/auth/register` — body: `{ "email", "password", "name" (optional), "teamId" or "newTeamName" }` — joining an existing team starts out pending approval; creating a new team auto-approves you and makes you its Squad Leader
+- `POST /api/auth/register` — body: `{ "email", "password", "name" (optional), "teamId" or "newTeamName" or neither to stay teamless }` — joining an existing team starts out pending approval and emails that team's Squad Leaders/admins; creating a new team auto-approves you and makes you its Squad Leader; omitting both leaves you teamless (join later from the Join a Team tab)
 - `POST /api/auth/login` — body: `{ "email", "password" }` — fails with a generic invalid-credentials error for Google-only accounts (no password on file)
 - `POST /api/auth/google` — body: `{ "credential": "<Google ID token>" }` — verifies the token, signs in (auto-linking by verified email to an existing password account if one matches), or creates a new teamless account
-- `POST /api/auth/team` — body: `{ "teamId" }` or `{ "newTeamName" }` — requires sign-in with no team yet (the post-Google-sign-in "pick your team" step); same approval/Squad Leader rules as registration
+- `POST /api/auth/team` — body: `{ "teamId" }` or `{ "newTeamName" }` — requires sign-in (with or without a team already); same approval/Squad Leader/email-notification rules as registration
 - `POST /api/auth/logout`
 - `GET /api/auth/me` — current session user, or 401
 - `PUT /api/auth/me` — body: `{ "name", "phone", "address" }` — requires sign-in, sets/clears your own display name and contact info
@@ -331,11 +392,15 @@ callout box (see Team logos below).
 - `POST /api/team/pending/:id/approve` — Squad Leader or admin, approves a pending teammate
 - `POST /api/team/pending/:id/deny` — Squad Leader or admin, clears the pending account's team so they can pick again
 - `GET /api/team/squad-leaders` — requires sign-in, every Squad Leader across every team as `{ name, team_id }` — used to badge their name everywhere they appear, not just their own team's views
-- `GET /api/admin/settings` / `PUT /api/admin/settings` (now includes `google_client_id`) — admin only
+- `GET /api/admin/settings` / `PUT /api/admin/settings` (now includes `google_client_id`, `smtp_host`, `smtp_port`, `smtp_user`, `smtp_from`, and `smtp_pass_set`/`smtp_pass`) — admin only
 - `GET /api/admin/users` (includes `phone`, `is_squad_leader`, `team_approved`) / `PUT /api/admin/users/:id` (body: `{ "isAdmin"?, "isSquadLeader"?, "teamApproved"?, "teamId"? }`) / `DELETE /api/admin/users/:id` — admin only
 - `POST /api/admin/teams` — admin only, create a team
-- `PUT /api/admin/teams/:id` — admin only, body: `{ "name" }`, rename a team
+- `PUT /api/admin/teams/:id` — admin only, body: `{ "name", "leagueId"? }`, rename a team and/or assign/clear its league (omit `leagueId` to leave it untouched, `null`/falsy to clear it)
 - `DELETE /api/admin/teams/:id` — admin only, cascades to that team's shooters/rounds/scores; blocked while users are still assigned to it
+- `GET /api/leagues` — requires sign-in only (no team needed), every league's full info
+- `POST /api/admin/leagues` — admin only, body: `{ "name" }`
+- `PUT /api/admin/leagues/:id` — admin only, body: `{ "name", "location"?, "contactName"?, "contactEmail"?, "contactPhone"?, "scheduleText"?, "costsText"?, "description"? }`
+- `DELETE /api/admin/leagues/:id` — admin only, clears the league assignment on any team that had it; deletes nothing else
 - `GET /api/admin/shooters` — admin only, every shooter across every team with a round count
 - `POST /api/admin/shooters` — admin only, body: `{ "name", "teamId" }`
 - `PUT /api/admin/shooters/:id` — admin only, body: `{ "name"?, "teamId"? }` — rename and/or reassign team
@@ -344,7 +409,7 @@ callout box (see Team logos below).
 - `GET /api/admin/rounds/:id` — admin only, full shooter/score detail for one round, including who subbed for whom
 - `PUT /api/admin/rounds/:id` — admin only, body: `{ "date", "yardage", "roundNumber", "teamId"?, "shooters": [{ "name", "stations", "total", "subFor"?, "roundNumber"? }] }` — replaces the round's date/round number/yardage/scores; passing a different `teamId` moves the round to that team and re-matches shooters against its roster. If any shooter's own `roundNumber` differs from the round's, those shooters are split out into new round records (same date/yardage/team) instead of being saved onto this one; the response includes `{ ok: true, splitIntoRoundIds: [...] }` listing the newly created round IDs (empty if nothing was split)
 - `DELETE /api/admin/rounds/:id` — admin only, deletes any round regardless of team
-- `GET /api/teams` — list all teams (public, used by the registration form), each including `logo_data`
+- `GET /api/teams` — list all teams (public, used by the registration form), each including `logo_data`, `league_id`, `league_name`
 - `PUT /api/teams/:id/logo` — requires sign-in as that team's Squad Leader or an admin, body: `{ "logoData": "data:image/...;base64,..." }` to set or `{ "logoData": null }` to clear
 - `POST /api/rounds` — body: `{ "date": "YYYY-MM-DD", "yardage": n or null, "roundNumber": n (default 1), "teamId"? (admin only, logs the round for a different team), "shooters": [{ "name", "stations": [n,n,n,n,n], "total": n, "subFor": "team member's name" or null }] }` — requires sign-in **and an approved team**, scoped to your team automatically (non-admins can't override `teamId`)
 - `GET /api/rounds` — every saved round for your team, each shooter entry includes `subFor` if they were subbing — requires sign-in and an approved team

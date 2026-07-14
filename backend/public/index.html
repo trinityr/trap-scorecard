@@ -20,6 +20,18 @@
   --good:#8ab06a;
   --bad:#c65c4a;
 }
+[data-theme="light"]{
+  --bg-void:#f4f2ea;
+  --bg-panel:#ffffff;
+  --bg-panel-raised:#efebdd;
+  --accent-clay:#e35f22;
+  --accent-brass:#93701f;
+  --text-primary:#242419;
+  --text-muted:#69695a;
+  --line:#ddd6c1;
+  --good:#3f6b2a;
+  --bad:#a63b28;
+}
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;background:var(--bg-void);}
 body{color:var(--text-primary);font-family:'Inter',sans-serif;min-height:100vh;}
@@ -123,10 +135,14 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
 .divider{display:flex;align-items:center;gap:10px;margin:14px 0;color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;}
 .divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--line);}
 .center-wrap{max-width:380px;margin:40px auto;padding:0 16px;}
+.theme-toggle{position:fixed;top:12px;right:12px;z-index:50;background:var(--bg-panel-raised);border:1px solid var(--line);color:var(--text-primary);width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;padding:0;}
+.theme-toggle:hover{border-color:var(--accent-brass);}
 @media(max-width:520px){main{padding:16px 12px;} .lb-avg{width:54px;font-size:15px;}}
 </style>
 </head>
 <body>
+
+<button class="theme-toggle" id="themeToggleBtn" title="Toggle light/dark theme">🌙</button>
 
 <div class="hero">
   <div class="eyebrow">SQUAD SCORECARD</div>
@@ -164,30 +180,13 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
       <label>Team</label>
       <select id="registerTeamSelect">
         <option value="__new__">+ Create a new team</option>
+        <option value="__skip__">Skip for now — I'll join later</option>
       </select>
     </div>
     <div class="field" id="registerNewTeamField"><label>New team name</label><input type="text" id="registerNewTeamName" placeholder="e.g. Saturday Squad"/></div>
     <button class="btn" id="registerBtn" style="width:100%">Create account</button>
     <div class="note">The very first account created on this app becomes an admin automatically.</div>
     <div class="error" id="registerError"></div>
-  </div>
-</div>
-
-<div class="center-wrap" id="teamPickWrap" style="display:none">
-  <div class="card">
-    <h3>Pick your team</h3>
-    <div class="note" style="margin-top:0">One more step — join an existing team or start a new one.</div>
-    <div class="field">
-      <label>Team</label>
-      <select id="teamPickSelect">
-        <option value="__new__">+ Create a new team</option>
-      </select>
-    </div>
-    <div class="field" id="teamPickNewField"><label>New team name</label><input type="text" id="teamPickNewName" placeholder="e.g. Saturday Squad"/></div>
-    <button class="btn" id="teamPickBtn" style="width:100%">Continue</button>
-    <div class="error" id="teamPickError"></div>
-    <div class="note">Creating a new team makes you its Squad Leader, approved right away. Joining an existing team needs approval from that team's Squad Leader or an admin first.</div>
-    <button class="btn ghost small" id="teamPickSignOutBtn" style="margin-top:6px;width:100%">Sign out</button>
   </div>
 </div>
 
@@ -209,17 +208,23 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
   <button class="tab" data-tab="board">Leaderboard</button>
   <button class="tab" data-tab="trends">Trends</button>
   <button class="tab" data-tab="history">History</button>
+  <button class="tab" data-tab="league">League</button>
   <button class="tab" data-tab="profile">Profile</button>
 </div>
 
 <main>
 
   <section class="panel active" id="panel-dashboard">
-    <div class="card">
+    <div class="card" id="dashboardNoTeamCard" style="display:none">
+      <h3>You're not on a team yet</h3>
+      <div class="note" style="margin-top:0">You can browse the app and see how everyone stacks up site-wide, but joining a team unlocks your own stats, New Round entry, and your squad's leaderboard.</div>
+      <div class="row-actions" style="margin-top:0"><button class="btn small" onclick="document.querySelector('.tab[data-tab=&quot;join&quot;]').click()">Join a team</button></div>
+    </div>
+    <div class="card" id="dashboardTeamCard">
       <h3 id="dashboardTeamHeading">Your team</h3>
       <div class="metric-grid" id="dashboardMetrics"></div>
     </div>
-    <div class="card">
+    <div class="card" id="dashboardBoardCard">
       <h3>Your team's leaderboard</h3>
       <div id="dashboardTeamBoard"></div>
       <div class="row-actions"><button class="btn ghost small" id="dashboardViewFullBoard">View full leaderboard</button></div>
@@ -353,6 +358,31 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     </div>
   </section>
 
+  <section class="panel" id="panel-league">
+    <div class="card">
+      <h3>Leagues</h3>
+      <div class="note" style="margin-top:0">Info, location, contact, schedule, and cost breakdown for each league on this site. Your own team's league (if it has one) is pinned to the top.</div>
+      <div id="leagueBody"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-join">
+    <div class="card">
+      <h3>Join a team</h3>
+      <div class="note" style="margin-top:0">Join an existing team or start a new one. You can keep browsing without one, but a team unlocks New Round entry, your team's leaderboard, and stat tracking.</div>
+      <div class="field">
+        <label>Team</label>
+        <select id="joinTeamSelect">
+          <option value="__new__">+ Create a new team</option>
+        </select>
+      </div>
+      <div class="field" id="joinTeamNewField"><label>New team name</label><input type="text" id="joinTeamNewName" placeholder="e.g. Saturday Squad"/></div>
+      <button class="btn" id="joinTeamBtn">Continue</button>
+      <div class="error" id="joinTeamError"></div>
+      <div class="note">Creating a new team makes you its Squad Leader, approved right away. Joining an existing team needs approval from that team's Squad Leader or an admin first.</div>
+    </div>
+  </section>
+
   <section class="panel" id="panel-admin">
     <div class="card">
       <h3>App settings</h3>
@@ -372,6 +402,27 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
         <label>Google Client ID</label>
         <input type="text" id="settingGoogleClientId" placeholder="xxxxxxxx.apps.googleusercontent.com"/>
       </div>
+      <div class="note" style="margin-top:16px;margin-bottom:8px">SMTP — used to email Squad Leaders/admins when someone requests to join their team. Leave blank to skip email alerts entirely.</div>
+      <div class="field">
+        <label>SMTP host</label>
+        <input type="text" id="settingSmtpHost" placeholder="smtp.yourprovider.com"/>
+      </div>
+      <div class="field">
+        <label>SMTP port</label>
+        <input type="text" id="settingSmtpPort" placeholder="587 (or 465 for implicit TLS)"/>
+      </div>
+      <div class="field">
+        <label>SMTP username</label>
+        <input type="text" id="settingSmtpUser" placeholder="often the same as the From address"/>
+      </div>
+      <div class="field">
+        <label>SMTP password <span id="smtpPassStatus" class="badge"></span></label>
+        <input type="password" id="settingSmtpPass" placeholder="Enter a new password to change it"/>
+      </div>
+      <div class="field">
+        <label>From address</label>
+        <input type="text" id="settingSmtpFrom" placeholder="team@trapscores.yourdomain.com"/>
+      </div>
       <button class="btn" id="saveSettingsBtn">Save settings</button>
       <div class="toast" id="settingsToast">Saved.</div>
       <div class="error" id="settingsError"></div>
@@ -386,7 +437,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     <div class="card admin-users-table">
       <h3>Teams</h3>
       <table class="tbl">
-        <thead><tr><th>Name</th><th>Logo</th><th></th></tr></thead>
+        <thead><tr><th>Name</th><th>League</th><th>Logo</th><th></th></tr></thead>
         <tbody id="adminTeamsBody"></tbody>
       </table>
       <div class="row-actions">
@@ -394,6 +445,15 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
         <button class="btn ghost small" id="adminCreateTeamBtn">Add team</button>
       </div>
       <div class="error" id="adminTeamsError"></div>
+    </div>
+    <div class="card admin-users-table">
+      <h3>Leagues</h3>
+      <div class="note" style="margin-top:0">Optional grouping teams can belong to — info, location, contact, schedule, and costs shown in everyone's League tab. Assign a team to one from the dropdown in the Teams table above.</div>
+      <div id="adminLeaguesBody"></div>
+      <div class="row-actions">
+        <button class="btn ghost small" id="adminAddLeagueBtn">+ Add league</button>
+      </div>
+      <div class="error" id="adminLeaguesError"></div>
     </div>
     <div class="card admin-users-table">
       <h3>Shooters</h3>
@@ -421,8 +481,25 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
 <script>
 (function(){
   const COLORS = ['#ff6a2b','#c9a24b','#8ab06a','#6a9ac9','#c96ab0','#c65c4a','#6ac9b0'];
-  const state = { weeks: [], activeTab: 'new', imageBase64: null, draftShooters: [], trendSelected: new Set(), user: null, teams: [], adminEditingRound: null, drilldownReturnTab: null };
+  const state = { weeks: [], activeTab: 'new', imageBase64: null, draftShooters: [], trendSelected: new Set(), user: null, teams: [], leagues: [], adminEditingRound: null, drilldownReturnTab: null };
   const $ = sel => document.querySelector(sel);
+
+  // ---------- Light/dark theme ----------
+  function applyTheme(theme){
+    if(theme==='light') document.documentElement.setAttribute('data-theme','light');
+    else document.documentElement.removeAttribute('data-theme');
+    $('#themeToggleBtn').textContent = theme==='light' ? '🌙' : '☀️';
+    try{ localStorage.setItem('tsc-theme', theme); }catch(e){}
+  }
+  (function initTheme(){
+    let saved = 'dark';
+    try{ saved = localStorage.getItem('tsc-theme') || 'dark'; }catch(e){}
+    applyTheme(saved);
+  })();
+  $('#themeToggleBtn').addEventListener('click', ()=>{
+    const current = document.documentElement.getAttribute('data-theme')==='light' ? 'light' : 'dark';
+    applyTheme(current==='light' ? 'dark' : 'light');
+  });
 
   async function api(path, opts){
     const controller = new AbortController();
@@ -459,7 +536,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
       state.teams = await api('/teams');
     }catch(e){ state.teams = []; }
     const sel = $('#registerTeamSelect');
-    sel.innerHTML = state.teams.map(t=>`<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('') + '<option value="__new__">+ Create a new team</option>';
+    sel.innerHTML = state.teams.map(t=>`<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('') + '<option value="__new__">+ Create a new team</option><option value="__skip__">Skip for now — I\'ll join later</option>';
     if(state.teams.length===0) sel.value = '__new__';
     toggleNewTeamField();
   }
@@ -490,7 +567,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     const teamSel = $('#registerTeamSelect').value;
     const body = {email, password, name};
     if(teamSel==='__new__') body.newTeamName = $('#registerNewTeamName').value.trim();
-    else body.teamId = Number(teamSel);
+    else if(teamSel!=='__skip__') body.teamId = Number(teamSel);
     const btn = $('#registerBtn');
     btn.disabled = true; btn.textContent = 'Creating account...';
     try{
@@ -508,55 +585,21 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
   }
 
   // Routes a freshly-authenticated user (from login, register, a Google
-  // credential, the team-pick step, or the boot-time /auth/me check) to the
-  // right screen: still needs a team, still waiting on approval for the
-  // team they picked, or fully in.
+  // credential, the Join Team step, or the boot-time /auth/me check) to the
+  // right screen: still waiting on approval for a team they picked (hard
+  // block), or fully in — teamless is no longer a blocking state: those
+  // users land in the app in view-only mode with a "Join a Team" tab, see
+  // onSignedIn() and renderJoinTeamTabVisibility().
   function handleAuthResult(user){
-    if(!user.teamId){ showTeamPickScreen(user); return; }
-    if(!user.teamApproved){ showWaitingScreen(user); return; }
+    if(user.teamId && !user.teamApproved){ showWaitingScreen(user); return; }
     onSignedIn(user);
   }
 
   function hideAllTopLevelScreens(){
     $('#authWrap').style.display='none';
-    $('#teamPickWrap').style.display='none';
     $('#waitingWrap').style.display='none';
     $('#appShell').style.display='none';
   }
-
-  async function showTeamPickScreen(user){
-    state.user = user;
-    hideAllTopLevelScreens();
-    $('#teamPickWrap').style.display='block';
-    $('#teamPickError').style.display='none';
-    try{
-      const teams = await api('/teams');
-      state.teams = teams;
-      const sel = $('#teamPickSelect');
-      sel.innerHTML = teams.map(t=>`<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('') + '<option value="__new__">+ Create a new team</option>';
-      if(teams.length===0) sel.value = '__new__';
-      toggleTeamPickNewField();
-    }catch(e){ console.error(e); }
-  }
-  function toggleTeamPickNewField(){
-    $('#teamPickNewField').style.display = $('#teamPickSelect').value==='__new__' ? 'block' : 'none';
-  }
-  $('#teamPickSelect').addEventListener('change', toggleTeamPickNewField);
-  $('#teamPickSignOutBtn').addEventListener('click', signOut);
-  $('#teamPickBtn').addEventListener('click', async ()=>{
-    $('#teamPickError').style.display='none';
-    const sel = $('#teamPickSelect').value;
-    const body = {};
-    if(sel==='__new__') body.newTeamName = $('#teamPickNewName').value.trim();
-    else body.teamId = Number(sel);
-    const btn = $('#teamPickBtn');
-    btn.disabled = true; btn.textContent = 'Saving...';
-    try{
-      const user = await api('/auth/team', {method:'POST', body: JSON.stringify(body)});
-      handleAuthResult(user);
-    }catch(e){ const el = $('#teamPickError'); el.textContent = e.message; el.style.display='block'; }
-    finally{ btn.disabled = false; btn.textContent = 'Continue'; }
-  });
 
   function showWaitingScreen(user){
     state.user = user;
@@ -604,9 +647,39 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     renderSessionBar();
     renderAdminTabVisibility();
     renderTeamTabVisibility();
+    renderJoinTeamTabVisibility();
+    renderTabVisibilityForTeamStatus();
     setupAdminTeamPicker();
     $('#appShell').style.display='block';
     startApp();
+  }
+
+  // A team is required for stat tracking (New Round, Leaderboard, Trends,
+  // History all 403 server-side without one, via requireApprovedTeam) — so
+  // those tabs are hidden entirely for a teamless (view-only) user rather
+  // than shown and erroring. Dashboard, League, Profile, and Join a Team
+  // stay visible either way.
+  function renderTabVisibilityForTeamStatus(){
+    const hasTeam = Boolean(state.user.teamId);
+    ['new','board','trends','history'].forEach(tab=>{
+      const btn = document.querySelector('.tab[data-tab="'+tab+'"]');
+      if(btn) btn.style.display = hasTeam ? '' : 'none';
+    });
+  }
+
+  // Teamless users get a "Join a Team" tab (right after Dashboard) instead
+  // of being blocked behind a full-screen team picker before they can see
+  // anything. Once they join, the page reloads and this tab just won't be
+  // re-added.
+  function renderJoinTeamTabVisibility(){
+    if(state.user.teamId) return;
+    if(document.querySelector('.tab[data-tab="join"]')) return;
+    const btn = document.createElement('button');
+    btn.className = 'tab'; btn.dataset.tab = 'join'; btn.textContent = 'Join a Team';
+    const dashboardBtn = document.querySelector('.tab[data-tab="dashboard"]');
+    if(dashboardBtn) dashboardBtn.insertAdjacentElement('afterend', btn);
+    else $('#tabsBar').appendChild(btn);
+    bindTabButton(btn);
   }
 
   // Admins can log a round for any team, not just their own — shows a Team
@@ -662,12 +735,18 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
       state.activeTab = btn.dataset.tab;
       document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active', b===btn));
       document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active', p.id === 'panel-'+btn.dataset.tab));
+      // Header station-accuracy rings always revert to the team-wide
+      // default when navigating to any regular tab (only the shooter
+      // drilldown page overrides this, in openShooterDrilldown).
+      renderFieldArc();
       if(btn.dataset.tab==='dashboard') renderDashboard();
       if(btn.dataset.tab==='board') renderLeaderboard();
       if(btn.dataset.tab==='trends') renderTrends();
       if(btn.dataset.tab==='history') renderHistory();
       if(btn.dataset.tab==='profile') loadProfilePanel();
       if(btn.dataset.tab==='team') loadTeamPanel();
+      if(btn.dataset.tab==='league') loadLeaguePanel();
+      if(btn.dataset.tab==='join') loadJoinTeamPanel();
       if(btn.dataset.tab==='admin') loadAdminPanel();
     });
   }
@@ -977,6 +1056,29 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
   }
 
   async function renderDashboard(){
+    // Teamless users (view-only, no stat tracking yet) skip the team-scoped
+    // cards entirely and just see the site-wide scoreboard below.
+    const teamCard = $('#dashboardTeamCard');
+    const boardCard = $('#dashboardBoardCard');
+    const noTeamCard = $('#dashboardNoTeamCard');
+    if(!state.user.teamId){
+      if(teamCard) teamCard.style.display='none';
+      if(boardCard) boardCard.style.display='none';
+      if(noTeamCard) noTeamCard.style.display='block';
+      try{
+        const site = await api('/site/leaderboard');
+        renderSiteScoreboard(site);
+      }catch(e){
+        console.error(e);
+        $('#siteLeaderCallouts').innerHTML = '<div class="empty">Could not load the site-wide scoreboard.</div>';
+        $('#siteTopShooters').innerHTML = ''; $('#siteTopTeams').innerHTML = '';
+      }
+      return;
+    }
+    if(teamCard) teamCard.style.display='';
+    if(boardCard) boardCard.style.display='';
+    if(noTeamCard) noTeamCard.style.display='none';
+
     // --- Your team card ---
     $('#dashboardTeamHeading').textContent = 'Your team — ' + (state.user.teamName || '—');
     const agg = aggregate({rollup:true}).filter(r=>r.rounds>0);
@@ -1112,9 +1214,13 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     catch(e){ alert('Could not delete: '+e.message); }
   };
 
-  function renderFieldArc(){
+  // Station-accuracy rings in the hero header. By default (no records
+  // passed) it shows the signed-in user's whole team, averaged across every
+  // shooter — but renderFieldArcFor() lets it show just one shooter's own
+  // numbers instead, used while viewing that shooter's drilldown page.
+  function renderFieldArc(records){
     const el = $('#fieldArc');
-    const agg = aggregate();
+    const agg = records || (state.user && state.user.teamId ? aggregate() : []);
     const stationAvgPct = [0,1,2,3,4].map(i=>{
       let sum=0, cnt=0;
       agg.forEach(r=>{ if(r.stationAvgs[i]!=null){ sum+=r.stationAvgs[i]; cnt++; } });
@@ -1149,6 +1255,9 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     renderShooterDrilldown(clean, rec);
     document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
     $('#panel-shooter').classList.add('active');
+    // Header station-accuracy rings follow the shooter being viewed while
+    // on their drilldown page, instead of the team-wide default.
+    renderFieldArc(rec ? [rec] : []);
   }
 
   function renderShooterDrilldown(name, rec){
@@ -1191,6 +1300,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
   $('#shooterBackBtn').addEventListener('click', ()=>{
     const tab = state.drilldownReturnTab || 'dashboard';
     const btn = document.querySelector('.tab[data-tab="'+tab+'"]') || document.querySelector('.tab[data-tab="dashboard"]');
+    renderFieldArc();
     if(btn) btn.click();
   });
 
@@ -1288,6 +1398,74 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     catch(e){ alert('Could not deny: '+e.message); }
   };
 
+  // ---------- League panel ----------
+  // Renders every league's info, with the signed-in user's own team's
+  // league (if any) pinned first and expanded by default. Available to
+  // teamless users too — this is informational, not stat data.
+  async function loadLeaguePanel(){
+    const el = $('#leagueBody');
+    el.innerHTML = '<div class="empty">Loading…</div>';
+    try{
+      const leagues = await api('/leagues');
+      state.leagues = leagues;
+      if(leagues.length===0){ el.innerHTML = '<div class="empty">No leagues have been set up yet.</div>'; return; }
+      const myLeagueId = (state.teams||[]).find(t=>t.id===state.user.teamId)?.league_id
+        || (state.user.teamId && state.user.leagueId) || null;
+      const sorted = [...leagues].sort((a,b)=>{
+        if(a.id===myLeagueId) return -1;
+        if(b.id===myLeagueId) return 1;
+        return a.name.localeCompare(b.name);
+      });
+      el.innerHTML = sorted.map((l,i)=>`
+        <div class="history-item ${i===0 && l.id===myLeagueId ? 'open':''}" data-league="${l.id}">
+          <div class="history-head"><span class="d">${escapeHtml(l.name)}${l.id===myLeagueId?' <span class="badge">YOUR LEAGUE</span>':''}</span><span class="lb-sub">${escapeHtml(l.location||'')}</span></div>
+          <div class="history-body">
+            ${l.description ? `<div class="note" style="margin-top:0;white-space:pre-wrap">${escapeHtml(l.description)}</div>` : ''}
+            ${l.location ? `<div class="field"><label>Location</label><div>${escapeHtml(l.location)}</div></div>` : ''}
+            ${(l.contact_name||l.contact_email||l.contact_phone) ? `<div class="field"><label>Contact</label><div>${[l.contact_name, l.contact_email, l.contact_phone].filter(Boolean).map(escapeHtml).join(' · ')}</div></div>` : ''}
+            ${l.schedule_text ? `<div class="field"><label>Schedule</label><div style="white-space:pre-wrap">${escapeHtml(l.schedule_text)}</div></div>` : ''}
+            ${l.costs_text ? `<div class="field"><label>Costs</label><div style="white-space:pre-wrap">${escapeHtml(l.costs_text)}</div></div>` : ''}
+          </div>
+        </div>`).join('');
+      Array.from(el.querySelectorAll('.history-head')).forEach(head=>{
+        head.addEventListener('click', ()=> head.parentElement.classList.toggle('open'));
+      });
+    }catch(e){ el.innerHTML = '<div class="empty">Could not load leagues: '+escapeHtml(e.message)+'</div>'; }
+  }
+
+  // ---------- Join a Team panel (teamless users) ----------
+  async function loadJoinTeamPanel(){
+    $('#joinTeamError').style.display='none';
+    try{
+      const teams = await api('/teams');
+      state.teams = teams;
+      const sel = $('#joinTeamSelect');
+      sel.innerHTML = teams.map(t=>`<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('') + '<option value="__new__">+ Create a new team</option>';
+      if(teams.length===0) sel.value = '__new__';
+      toggleJoinTeamNewField();
+    }catch(e){ console.error(e); }
+  }
+  function toggleJoinTeamNewField(){
+    $('#joinTeamNewField').style.display = $('#joinTeamSelect').value==='__new__' ? 'block' : 'none';
+  }
+  $('#joinTeamSelect').addEventListener('change', toggleJoinTeamNewField);
+  $('#joinTeamBtn').addEventListener('click', async ()=>{
+    $('#joinTeamError').style.display='none';
+    const sel = $('#joinTeamSelect').value;
+    const body = {};
+    if(sel==='__new__') body.newTeamName = $('#joinTeamNewName').value.trim();
+    else body.teamId = Number(sel);
+    const btn = $('#joinTeamBtn');
+    btn.disabled = true; btn.textContent = 'Saving...';
+    try{
+      await api('/auth/team', {method:'POST', body: JSON.stringify(body)});
+      // Full reload rather than patching state in place — tab visibility,
+      // the New Round/Leaderboard/Trends/History gates, and the Team tab
+      // all depend on a clean re-run of onSignedIn() with the new team.
+      location.reload();
+    }catch(e){ const el = $('#joinTeamError'); el.textContent = e.message; el.style.display='block'; btn.disabled = false; btn.textContent = 'Continue'; }
+  });
+
   // ---------- Admin panel ----------
   async function loadAdminPanel(){
     try{
@@ -1297,6 +1475,12 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
       $('#settingCorsOrigin').value = settings.cors_origin;
       $('#settingAllowRegistration').checked = settings.allow_registration !== 'false';
       $('#settingGoogleClientId').value = settings.google_client_id || '';
+      $('#settingSmtpHost').value = settings.smtp_host || '';
+      $('#settingSmtpPort').value = settings.smtp_port || '';
+      $('#settingSmtpUser').value = settings.smtp_user || '';
+      $('#settingSmtpFrom').value = settings.smtp_from || '';
+      $('#settingSmtpPass').value = '';
+      $('#smtpPassStatus').textContent = settings.smtp_pass_set ? 'set' : 'not set';
     }catch(e){ console.error(e); }
 
     let teams = [];
@@ -1318,7 +1502,13 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
         </tr>`).join('');
     }catch(e){ console.error(e); }
 
-    renderAdminTeamsTable(teams);
+    let leagues = [];
+    try{
+      leagues = await api('/leagues');
+      state.leagues = leagues;
+    }catch(e){ console.error(e); }
+    renderAdminTeamsTable(teams, leagues);
+    renderAdminLeaguesBody(leagues);
 
     try{
       const shooters = await api('/admin/shooters');
@@ -1337,10 +1527,17 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
   }
 
   // ---------- Admin: Teams ----------
-  function renderAdminTeamsTable(teams){
+  function renderAdminTeamsTable(teams, leagues){
+    leagues = leagues || state.leagues || [];
     $('#adminTeamsBody').innerHTML = teams.map(t=>`
       <tr>
         <td><input type="text" value="${escapeAttr(t.name)}" onchange="window.__tscRenameTeam(${t.id}, this.value)"/></td>
+        <td>
+          <select onchange="window.__tscSetTeamLeague(${t.id}, this.value)">
+            <option value="">— No league —</option>
+            ${leagues.map(l=>`<option value="${l.id}" ${l.id===t.league_id?'selected':''}>${escapeHtml(l.name)}</option>`).join('')}
+          </select>
+        </td>
         <td>
           ${t.logo_data ? `<img src="${t.logo_data}" style="width:30px;height:30px;object-fit:cover;border-radius:5px;vertical-align:middle;margin-right:6px;"/><button class="rm" style="font-size:12px" onclick="window.__tscClearTeamLogo(${t.id})" title="Remove logo">✕</button>` : ''}
           <label class="btn ghost small" style="cursor:pointer">${t.logo_data?'Change':'Upload'}<input type="file" accept="image/*" style="display:none" onchange="window.__tscUploadTeamLogo(${t.id}, this)"/></label>
@@ -1348,6 +1545,72 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
         <td><button class="rm" onclick="window.__tscDeleteTeam(${t.id})">✕</button></td>
       </tr>`).join('');
   }
+
+  window.__tscSetTeamLeague = async function(teamId, leagueId){
+    try{
+      // PUT /admin/teams/:id requires name in the body — look it up from
+      // state.teams rather than making the caller re-type it just to
+      // change the league dropdown.
+      const team = (state.teams||[]).find(t=>t.id===teamId);
+      await api('/admin/teams/'+teamId, {method:'PUT', body: JSON.stringify({name: team ? team.name : '', leagueId: leagueId || null})});
+      loadAdminPanel();
+    }catch(e){ const el = $('#adminTeamsError'); el.textContent = e.message; el.style.display='block'; }
+  };
+
+  // ---------- Admin: Leagues ----------
+  function renderAdminLeaguesBody(leagues){
+    const el = $('#adminLeaguesBody');
+    if(leagues.length===0){ el.innerHTML = '<div class="empty">No leagues yet.</div>'; return; }
+    el.innerHTML = leagues.map(l=>`
+      <div class="history-item" data-league-edit="${l.id}">
+        <div class="history-head"><span class="d">${escapeHtml(l.name)}</span><span class="lb-sub">${escapeHtml(l.location||'')}</span></div>
+        <div class="history-body">
+          <div class="field"><label>Name</label><input type="text" id="leagueName-${l.id}" value="${escapeAttr(l.name)}"/></div>
+          <div class="field"><label>Location</label><input type="text" id="leagueLocation-${l.id}" value="${escapeAttr(l.location||'')}"/></div>
+          <div class="field"><label>Contact name</label><input type="text" id="leagueContactName-${l.id}" value="${escapeAttr(l.contact_name||'')}"/></div>
+          <div class="field"><label>Contact email</label><input type="text" id="leagueContactEmail-${l.id}" value="${escapeAttr(l.contact_email||'')}"/></div>
+          <div class="field"><label>Contact phone</label><input type="text" id="leagueContactPhone-${l.id}" value="${escapeAttr(l.contact_phone||'')}"/></div>
+          <div class="field"><label>Description</label><textarea id="leagueDescription-${l.id}" rows="2" style="width:100%;background:var(--bg-panel-raised);border:1px solid var(--line);color:var(--text-primary);padding:8px 10px;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:13px;">${escapeHtml(l.description||'')}</textarea></div>
+          <div class="field"><label>Schedule</label><textarea id="leagueSchedule-${l.id}" rows="3" style="width:100%;background:var(--bg-panel-raised);border:1px solid var(--line);color:var(--text-primary);padding:8px 10px;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:13px;">${escapeHtml(l.schedule_text||'')}</textarea></div>
+          <div class="field"><label>Costs</label><textarea id="leagueCosts-${l.id}" rows="3" style="width:100%;background:var(--bg-panel-raised);border:1px solid var(--line);color:var(--text-primary);padding:8px 10px;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:13px;">${escapeHtml(l.costs_text||'')}</textarea></div>
+          <div class="row-actions">
+            <button class="btn small" onclick="window.__tscSaveLeague(${l.id})">Save</button>
+            <button class="btn danger small" onclick="window.__tscDeleteLeague(${l.id})">Delete league</button>
+          </div>
+        </div>
+      </div>`).join('');
+    Array.from(el.querySelectorAll('.history-head')).forEach(head=>{
+      head.addEventListener('click', ()=> head.parentElement.classList.toggle('open'));
+    });
+  }
+
+  window.__tscSaveLeague = async function(id){
+    const body = {
+      name: $('#leagueName-'+id).value.trim(),
+      location: $('#leagueLocation-'+id).value.trim(),
+      contactName: $('#leagueContactName-'+id).value.trim(),
+      contactEmail: $('#leagueContactEmail-'+id).value.trim(),
+      contactPhone: $('#leagueContactPhone-'+id).value.trim(),
+      description: $('#leagueDescription-'+id).value.trim(),
+      scheduleText: $('#leagueSchedule-'+id).value.trim(),
+      costsText: $('#leagueCosts-'+id).value.trim(),
+    };
+    if(!body.name){ const el = $('#adminLeaguesError'); el.textContent='League name is required.'; el.style.display='block'; return; }
+    try{ await api('/admin/leagues/'+id, {method:'PUT', body: JSON.stringify(body)}); loadAdminPanel(); }
+    catch(e){ const el = $('#adminLeaguesError'); el.textContent = e.message; el.style.display='block'; }
+  };
+  window.__tscDeleteLeague = async function(id){
+    if(!confirm('Delete this league? Teams assigned to it just lose the assignment — nothing else is deleted.')) return;
+    try{ await api('/admin/leagues/'+id, {method:'DELETE'}); loadAdminPanel(); }
+    catch(e){ const el = $('#adminLeaguesError'); el.textContent = e.message; el.style.display='block'; }
+  };
+  $('#adminAddLeagueBtn').addEventListener('click', async ()=>{
+    $('#adminLeaguesError').style.display='none';
+    const name = prompt('New league name:');
+    if(!name || !name.trim()) return;
+    try{ await api('/admin/leagues', {method:'POST', body: JSON.stringify({name: name.trim()})}); loadAdminPanel(); }
+    catch(e){ const el = $('#adminLeaguesError'); el.textContent = e.message; el.style.display='block'; }
+  });
 
   window.__tscRenameTeam = async function(id, name){
     name = name.trim();
@@ -1563,10 +1826,16 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     const body = {
       cors_origin: $('#settingCorsOrigin').value,
       allow_registration: $('#settingAllowRegistration').checked,
-      google_client_id: $('#settingGoogleClientId').value.trim()
+      google_client_id: $('#settingGoogleClientId').value.trim(),
+      smtp_host: $('#settingSmtpHost').value.trim(),
+      smtp_port: $('#settingSmtpPort').value.trim(),
+      smtp_user: $('#settingSmtpUser').value.trim(),
+      smtp_from: $('#settingSmtpFrom').value.trim(),
     };
     const key = $('#settingApiKey').value.trim();
     if(key) body.anthropic_api_key = key;
+    const smtpPass = $('#settingSmtpPass').value.trim();
+    if(smtpPass) body.smtp_pass = smtpPass;
     try{
       await api('/admin/settings', {method:'PUT', body: JSON.stringify(body)});
       const toast = $('#settingsToast');

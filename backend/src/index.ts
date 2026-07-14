@@ -15,6 +15,7 @@ import statsRouter from "./routes/stats";
 import extractRouter from "./routes/extract";
 import siteRouter from "./routes/site";
 import publicSettingsRouter from "./routes/public";
+import leaguesRouter from "./routes/leagues";
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -95,6 +96,7 @@ app.use("/api/stats", statsRouter);
 app.use("/api/extract", extractRouter);
 app.use("/api/site", siteRouter);
 app.use("/api/public-settings", publicSettingsRouter);
+app.use("/api/leagues", leaguesRouter);
 
 // Serve the frontend — must come after the /api routes above so those
 // take priority.
