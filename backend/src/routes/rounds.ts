@@ -111,7 +111,7 @@ router.get("/", async (req: Request, res: Response) => {
 
   try {
     const rounds = await pool.query(
-      "SELECT id, round_date, yardage, round_number FROM rounds WHERE team_id = $1 ORDER BY round_date DESC, round_number DESC",
+      "SELECT id, to_char(round_date, 'YYYY-MM-DD') AS round_date, yardage, round_number FROM rounds WHERE team_id = $1 ORDER BY round_date DESC, round_number DESC",
       [teamId]
     );
 

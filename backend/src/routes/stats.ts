@@ -56,7 +56,7 @@ router.get("/trends", async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
       `
-      SELECT sh.name, r.round_date, s.total
+      SELECT sh.name, to_char(r.round_date, 'YYYY-MM-DD') AS round_date, s.total
       FROM scores s
       JOIN shooters sh ON sh.id = s.shooter_id
       JOIN rounds r ON r.id = s.round_id

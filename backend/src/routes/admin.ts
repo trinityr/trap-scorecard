@@ -267,7 +267,7 @@ router.delete("/shooters/:id", async (req: Request, res: Response) => {
 router.get("/rounds", async (_req: Request, res: Response) => {
   try {
     const result = await pool.query(`
-      SELECT r.id, r.team_id, t.name AS team_name, r.round_date, r.round_number, r.yardage, COUNT(s.id)::int AS shooter_count
+      SELECT r.id, r.team_id, t.name AS team_name, to_char(r.round_date, 'YYYY-MM-DD') AS round_date, r.round_number, r.yardage, COUNT(s.id)::int AS shooter_count
       FROM rounds r
       JOIN teams t ON t.id = r.team_id
       LEFT JOIN scores s ON s.round_id = r.id
@@ -285,7 +285,7 @@ router.get("/rounds", async (_req: Request, res: Response) => {
 router.get("/rounds/:id", async (req: Request, res: Response) => {
   try {
     const roundResult = await pool.query(
-      `SELECT r.id, r.team_id, t.name AS team_name, r.round_date, r.round_number, r.yardage
+      `SELECT r.id, r.team_id, t.name AS team_name, to_char(r.round_date, 'YYYY-MM-DD') AS round_date, r.round_number, r.yardage
        FROM rounds r JOIN teams t ON t.id = r.team_id WHERE r.id = $1`,
       [req.params.id]
     );
