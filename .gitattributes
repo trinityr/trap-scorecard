@@ -1,0 +1,10 @@
+# Force LF line endings for these regardless of what OS commits or checks
+# them out — prevents CRLF from Windows breaking shebang lines on Linux.
+*.sh text eol=lf
+*.sql text eol=lf
+*.ts text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+Dockerfile text eol=lf
