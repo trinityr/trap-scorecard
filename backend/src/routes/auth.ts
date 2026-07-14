@@ -17,8 +17,9 @@ router.post("/register", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "Password must be at least 8 characters." });
   }
 
-  const client = await pool.connect();
+  let client;
   try {
+    client = await pool.connect();
     await client.query("BEGIN");
 
     const countResult = await client.query("SELECT COUNT(*)::int AS c FROM users");
@@ -79,11 +80,17 @@ router.post("/register", async (req: Request, res: Response) => {
     };
     res.status(201).json(req.session.user);
   } catch (err) {
-    await client.query("ROLLBACK");
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackErr) {
+        console.error("Rollback also failed:", rollbackErr);
+      }
+    }
     console.error(err);
     res.status(500).json({ error: "Could not register." });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 });
 

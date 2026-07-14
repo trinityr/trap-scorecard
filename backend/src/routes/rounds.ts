@@ -25,8 +25,9 @@ router.post("/", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "Request needs a date and at least one shooter." });
   }
 
-  const client = await pool.connect();
+  let client;
   try {
+    client = await pool.connect();
     await client.query("BEGIN");
 
     const roundResult = await client.query(
@@ -61,11 +62,17 @@ router.post("/", async (req: Request, res: Response) => {
     await client.query("COMMIT");
     res.status(201).json({ id: roundId });
   } catch (err) {
-    await client.query("ROLLBACK");
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackErr) {
+        console.error("Rollback also failed:", rollbackErr);
+      }
+    }
     console.error(err);
     res.status(500).json({ error: "Could not save round." });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 });
 

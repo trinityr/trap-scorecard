@@ -173,7 +173,11 @@ if [ -z "$CT_PASSWORD" ]; then
 fi
 
 if [ -z "$POSTGRES_PASSWORD" ]; then
-  POSTGRES_PASSWORD="$(openssl rand -base64 24)"
+  # Alphanumeric only — base64 output can contain "/", "+", "=" which
+  # break URL parsing if this password ever ends up embedded in a
+  # postgres:// connection string (the app itself no longer does this,
+  # but plenty of tools/scripts default to that pattern).
+  POSTGRES_PASSWORD="$(tr -dc 'A-Za-z0-9' < /dev/urandom | head -c24)"
 fi
 
 if [ -z "$SESSION_SECRET" ]; then
