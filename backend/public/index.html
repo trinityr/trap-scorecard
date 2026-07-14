@@ -288,7 +288,17 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
   const $ = sel => document.querySelector(sel);
 
   async function api(path, opts){
-    const res = await fetch('/api'+path, Object.assign({headers:{'Content-Type':'application/json'}}, opts||{}));
+    const controller = new AbortController();
+    const timeout = setTimeout(()=>controller.abort(), 15000);
+    let res;
+    try{
+      res = await fetch('/api'+path, Object.assign({headers:{'Content-Type':'application/json'}, signal: controller.signal}, opts||{}));
+    }catch(e){
+      if(e.name === 'AbortError') throw new Error('The server took too long to respond (15s timeout). Check the api container logs.');
+      throw new Error('Could not reach the server: '+e.message);
+    }finally{
+      clearTimeout(timeout);
+    }
     if(!res.ok){
       let msg = 'Request failed (HTTP '+res.status+')';
       try{ const body = await res.json(); if(body.error) msg = body.error; }catch(e){}
@@ -326,10 +336,13 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     const email = $('#loginEmail').value.trim();
     const password = $('#loginPassword').value;
     if(!email || !password){ showAuthError('#loginError','Enter your email and password.'); return; }
+    const btn = $('#loginBtn');
+    btn.disabled = true; btn.textContent = 'Signing in...';
     try{
       const user = await api('/auth/login', {method:'POST', body: JSON.stringify({email, password})});
       onSignedIn(user);
     }catch(e){ showAuthError('#loginError', e.message); }
+    finally{ btn.disabled = false; btn.textContent = 'Sign in'; }
   });
 
   $('#registerBtn').addEventListener('click', async ()=>{
@@ -340,10 +353,13 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     const body = {email, password};
     if(teamSel==='__new__') body.newTeamName = $('#registerNewTeamName').value.trim();
     else body.teamId = Number(teamSel);
+    const btn = $('#registerBtn');
+    btn.disabled = true; btn.textContent = 'Creating account...';
     try{
       const user = await api('/auth/register', {method:'POST', body: JSON.stringify(body)});
       onSignedIn(user);
     }catch(e){ showAuthError('#registerError', e.message); }
+    finally{ btn.disabled = false; btn.textContent = 'Create account'; }
   });
 
   function showAuthError(sel, msg){ const el = $(sel); el.textContent = msg; el.style.display='block'; }
