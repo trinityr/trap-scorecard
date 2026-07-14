@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Trap Line Stats</title>
+<title>Trap Stats</title>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
@@ -36,7 +36,9 @@
 html,body{margin:0;padding:0;background:var(--bg-void);}
 body{color:var(--text-primary);font-family:'Inter',sans-serif;min-height:100vh;}
 .mono{font-family:'IBM Plex Mono',monospace;}
-.hero{padding:32px 28px 16px;background:linear-gradient(180deg,var(--bg-panel-raised) 0%,var(--bg-void) 100%);border-bottom:1px solid var(--line);text-align:center;}
+.hero{position:relative;overflow:hidden;padding:32px 28px 16px;background:linear-gradient(180deg,var(--bg-panel-raised) 0%,var(--bg-void) 100%);border-bottom:1px solid var(--line);text-align:center;}
+.hero-logo{position:absolute;top:2px;left:50%;transform:translateX(-50%);width:320px;max-width:85%;height:140px;z-index:-1;opacity:.4;pointer-events:none;}
+.hero-logo svg{width:100%;height:100%;display:block;}
 .eyebrow{font-family:'IBM Plex Mono',monospace;letter-spacing:.28em;font-size:11px;color:var(--accent-brass);margin-bottom:8px;}
 .hero h1{font-family:'Oswald',sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:.03em;font-size:clamp(28px,5vw,42px);margin:0 0 6px;}
 .hero p{color:var(--text-muted);margin:0 0 12px;font-size:14px;}
@@ -151,8 +153,40 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
 <button class="theme-toggle" id="themeToggleBtn" title="Toggle light/dark theme">🌙</button>
 
 <div class="hero">
+  <div class="hero-logo" aria-hidden="true">
+    <svg viewBox="0 0 340 150" xmlns="http://www.w3.org/2000/svg">
+      <g stroke="var(--accent-clay)" stroke-width="2" stroke-linecap="round" opacity="0.55">
+        <line x1="170" y1="70" x2="170" y2="14"/>
+        <line x1="170" y1="70" x2="215" y2="22"/>
+        <line x1="170" y1="70" x2="248" y2="45"/>
+        <line x1="170" y1="70" x2="260" y2="80"/>
+        <line x1="170" y1="70" x2="240" y2="118"/>
+        <line x1="170" y1="70" x2="195" y2="132"/>
+        <line x1="170" y1="70" x2="145" y2="132"/>
+        <line x1="170" y1="70" x2="100" y2="118"/>
+        <line x1="170" y1="70" x2="80" y2="80"/>
+        <line x1="170" y1="70" x2="92" y2="45"/>
+        <line x1="170" y1="70" x2="125" y2="22"/>
+      </g>
+      <g stroke="var(--bg-void)" stroke-width="1.5" stroke-linejoin="round">
+        <polygon points="132,42 152,56 142,24" fill="var(--accent-clay)"/>
+        <polygon points="208,42 188,56 198,24" fill="var(--accent-brass)"/>
+        <polygon points="96,76 126,60 122,92 102,96" fill="var(--accent-brass)"/>
+        <polygon points="244,76 214,60 218,92 238,96" fill="var(--accent-clay)"/>
+        <polygon points="141,106 156,90 167,111" fill="var(--accent-clay)"/>
+        <polygon points="199,106 184,90 173,111" fill="var(--accent-brass)"/>
+        <polygon points="171,122 161,106 181,106" fill="var(--accent-brass)"/>
+      </g>
+      <g fill="var(--accent-brass)">
+        <circle cx="170" cy="70" r="7" opacity="0.7"/>
+        <circle cx="150" cy="60" r="3" opacity="0.5"/>
+        <circle cx="192" cy="58" r="2.5" opacity="0.5"/>
+        <circle cx="170" cy="90" r="2" opacity="0.4"/>
+      </g>
+    </svg>
+  </div>
   <div class="eyebrow">SQUAD SCORECARD</div>
-  <h1>Trap Line Stats</h1>
+  <h1>Trap Stats</h1>
   <p>Snap the sheet. Track the squad.</p>
   <div class="session-bar" id="sessionBar" style="display:none"></div>
   <div class="field-arc" id="fieldArc"></div>
