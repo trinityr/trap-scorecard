@@ -40,7 +40,7 @@ DISK_GB="${DISK_GB:-8}"
 STORAGE="${STORAGE:-local-lvm}"
 TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-local}"
 BRIDGE="${BRIDGE:-vmbr0}"
-NET_CONFIG="${NET_CONFIG:-dhcp}"          # "dhcp" or e.g. "192.168.1.50/24,gw=192.168.1.1"
+NET_CONFIG="${NET_CONFIG:-dhcp}"          # "dhcp" or e.g. "192.168.100.50/24,gw=192.168.100.1"
 CTID="${CTID:-}"                          # blank = auto-pick next free ID
 CT_PASSWORD="${CT_PASSWORD:-}"            # blank = auto-generate
 TEMPLATE_PATTERN="${TEMPLATE_PATTERN:-debian-12-standard}"
