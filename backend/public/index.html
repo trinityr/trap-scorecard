@@ -1383,12 +1383,19 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
       agg.forEach(r=>{ if(r.stationAvgs[i]!=null){ sum+=r.stationAvgs[i]; cnt++; } });
       return cnt ? sum/cnt/5 : null;
     });
-    const cx=150, cy=104, R=88, r=20;
+    // Flattened fan layout: x positions are fixed/evenly spaced (not
+    // derived from an angle) so the rings always stay safely within the
+    // viewBox no matter how narrow the container gets, and y follows a
+    // shallow dome instead of a full semicircle so the shape sits lower
+    // and doesn't loom as tall.
+    const r=20;
+    const xs = [40,95,150,205,260];
+    const bottomY=92, topY=68;
     let dots = '';
     for(let i=0;i<5;i++){
-      const angle = (-70 + i*35) * Math.PI/180;
-      const x = cx + R*Math.sin(angle);
-      const y = cy - R*Math.cos(angle);
+      const u = (i-2)/2;
+      const x = xs[i];
+      const y = bottomY - (bottomY-topY)*(1-u*u);
       const pct = stationAvgPct[i];
       const circumference = 2*Math.PI*r;
       const dash = pct!=null ? circumference*pct : 0;
@@ -1399,7 +1406,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
         <text y="${r+16}" text-anchor="middle" font-family="Oswald, sans-serif" font-size="10" letter-spacing="1" fill="#9c9c8e">STA ${i+1}</text>
       </g>`;
     }
-    el.innerHTML = `<svg viewBox="0 0 300 150" style="width:100%;height:auto">${dots}</svg>`;
+    el.innerHTML = `<svg viewBox="0 0 300 140" style="width:100%;height:auto">${dots}</svg>`;
   }
 
   // ---------- Shooter drilldown ----------
