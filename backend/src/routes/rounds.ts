@@ -1,10 +1,11 @@
 import { Router, Request, Response } from "express";
 import { pool } from "../db";
-import { requireAuth } from "../auth";
+import { requireAuth, requireApprovedTeam } from "../auth";
 import { ShooterScore } from "../types";
 
 const router = Router();
 router.use(requireAuth);
+router.use(requireApprovedTeam);
 
 function autoTotal(stations: (number | null)[] | undefined): number | null {
   if (!stations) return null;

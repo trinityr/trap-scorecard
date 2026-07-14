@@ -24,22 +24,25 @@ backend/
     005_add_round_number.sql <- run manually to add the round-number column to rounds
     006_add_substitutes.sql <- run manually to add substitute tracking to scores
     007_add_contact_info.sql <- run manually to add phone/address columns to users
+    008_add_google_oauth_and_squad_leader.sql <- run manually to add Google sign-in + Squad Leader/approval columns
   public/
     index.html              <- the scorecard web app: sign-in/register + admin panel + scoring UI
   src/
     index.ts
     db.ts
     types.ts
-    auth.ts                <- password hashing, requireAuth/requireAdmin middleware
+    auth.ts                <- password hashing, requireAuth/requireAdmin/requireApprovedTeam middleware
     settings.ts             <- DB-backed runtime settings (falls back to .env)
     session.d.ts             <- TypeScript types for the session's logged-in user
-    routes/auth.ts          <- POST /api/auth/register, /login, /logout, GET/PUT /me
+    routes/auth.ts          <- POST /api/auth/register, /login, /google, /team, /logout, GET/PUT /me
     routes/admin.ts         <- admin-only: app settings, users, teams, shooters, rounds
     routes/teams.ts         <- GET /api/teams (public, needed for the registration form)
+    routes/team.ts          <- pending team-join approvals, for Squad Leaders and admins
     routes/rounds.ts        <- POST/GET/DELETE /api/rounds (scoped to your session's team)
     routes/stats.ts         <- GET /api/stats/leaderboard, /api/stats/trends (scoped to your team)
     routes/site.ts          <- GET /api/site/leaderboard (cross-team scoreboard)
     routes/extract.ts       <- POST /api/extract (reads scoresheet photos via Claude)
+    routes/public.ts        <- GET /api/public-settings (pre-login settings the sign-in page needs)
 ```
 
 ## Quick start
@@ -144,6 +147,63 @@ Sessions are stored in Postgres (via `connect-pg-simple`) and last 30
 days. If you ever change `SESSION_SECRET`, everyone gets signed out — this
 is expected, not a bug.
 
+### Google Sign-In
+
+Optional. If configured, a "Continue with Google" button appears above the
+regular sign-in/register form and works for both — Google's Identity
+Services library hands back a signed ID token, which the server verifies
+directly (no OAuth redirect dance, no client secret needed).
+
+To set it up:
+1. In [Google Cloud Console](https://console.cloud.google.com/), create a
+   project (or reuse one), then go to **APIs & Services → Credentials**.
+2. Configure the **OAuth consent screen** if you haven't already —
+   "Internal" if everyone signing in is in your Google Workspace, otherwise
+   "External" with a small, unverified test-user list is fine for a
+   private club app.
+3. Create an **OAuth 2.0 Client ID**, application type **Web application**.
+   Add your app's real domain (the one behind Nginx Proxy Manager, e.g.
+   `https://scores.yourclub.com`) as an **Authorized JavaScript origin**.
+   No redirect URI is needed for this flow.
+4. Copy the generated **Client ID** (looks like
+   `xxxxxxxx.apps.googleusercontent.com`) into Admin → App settings →
+   **Google Client ID**, and save. The button appears on the sign-in
+   screen immediately — no redeploy needed. (You can also set
+   `GOOGLE_CLIENT_ID` in `.env` as a fallback default, same pattern as
+   `ANTHROPIC_API_KEY`.)
+
+Behavior:
+- If the Google account's email matches an existing password-based
+  account, it's **auto-linked** — that person can then sign in either way.
+- If it's a brand-new email, an account is created with no password (only
+  usable via Google from then on) and the person is immediately walked
+  through **picking a team** (see below), same as the tail end of
+  registration.
+- The very first account on the whole app becomes admin automatically
+  whether created via Google or the regular form.
+
+### Squad Leaders and team-join approval
+
+Each team can have one or more **Squad Leaders** — a title an admin grants
+from the Users table (or that's granted automatically to whoever creates a
+brand-new team, since nobody else exists yet to grant it). A Squad Leader
+is shown with a small orange "C" badge next to their name around the app,
+and gets a **Team** tab for approving people who've asked to join their
+team.
+
+Whenever someone picks an **existing** team — during registration, on the
+post-Google-sign-in team picker, or any other time a teamless account
+chooses a team — their membership starts out **pending**. They see a
+"waiting for approval" screen instead of the app until a Squad Leader or
+admin on that team approves them from the Team tab (or an admin flips
+their "Approved" checkbox directly in Admin → Users). Denying a request
+clears their team so they can pick again.
+
+Creating a **brand-new** team skips this entirely — the creator is
+auto-approved and becomes that team's Squad Leader immediately, since
+there's nobody else around yet who could approve them. The very first
+account on the whole app is also auto-approved for the same reason.
+
 **If you already had this app running before accounts were added**, run
 this migration once against your existing database before deploying this
 version:
@@ -156,15 +216,17 @@ entered is touched. After that, everyone just registers as normal; the
 first person to do so becomes admin.
 
 **If you already had accounts before the Profile tab, yardage, round
-numbers, substitutes, or contact info were added**, run these migrations
-once against your existing database (all are additive — nothing existing
-is touched):
+numbers, substitutes, contact info, Google sign-in, or Squad Leaders were
+added**, run these migrations once against your existing database (all are
+additive — nothing existing is touched, and everyone already on a team
+stays approved so nobody gets locked out):
 ```bash
 docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migrations/003_add_user_name.sql
 docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migrations/004_add_yardage.sql
 docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migrations/005_add_round_number.sql
 docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migrations/006_add_substitutes.sql
 docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migrations/007_add_contact_info.sql
+docker compose exec -T db psql -U trapadmin -d trapscores < backend/sql/migrations/008_add_google_oauth_and_squad_leader.sql
 ```
 
 ## Teams
@@ -227,13 +289,19 @@ below each.
 
 ## API
 
-- `POST /api/auth/register` — body: `{ "email", "password", "name" (optional), "teamId" or "newTeamName" }`
-- `POST /api/auth/login` — body: `{ "email", "password" }`
+- `POST /api/auth/register` — body: `{ "email", "password", "name" (optional), "teamId" or "newTeamName" }` — joining an existing team starts out pending approval; creating a new team auto-approves you and makes you its Squad Leader
+- `POST /api/auth/login` — body: `{ "email", "password" }` — fails with a generic invalid-credentials error for Google-only accounts (no password on file)
+- `POST /api/auth/google` — body: `{ "credential": "<Google ID token>" }` — verifies the token, signs in (auto-linking by verified email to an existing password account if one matches), or creates a new teamless account
+- `POST /api/auth/team` — body: `{ "teamId" }` or `{ "newTeamName" }` — requires sign-in with no team yet (the post-Google-sign-in "pick your team" step); same approval/Squad Leader rules as registration
 - `POST /api/auth/logout`
 - `GET /api/auth/me` — current session user, or 401
 - `PUT /api/auth/me` — body: `{ "name", "phone", "address" }` — requires sign-in, sets/clears your own display name and contact info
-- `GET /api/admin/settings` / `PUT /api/admin/settings` — admin only
-- `GET /api/admin/users` (includes `phone`) / `PUT /api/admin/users/:id` / `DELETE /api/admin/users/:id` — admin only
+- `GET /api/public-settings` — public, currently just `{ googleClientId }` so the sign-in page knows whether to render the Google button
+- `GET /api/team/pending` — requires being a Squad Leader or admin, lists accounts awaiting approval on your own team
+- `POST /api/team/pending/:id/approve` — Squad Leader or admin, approves a pending teammate
+- `POST /api/team/pending/:id/deny` — Squad Leader or admin, clears the pending account's team so they can pick again
+- `GET /api/admin/settings` / `PUT /api/admin/settings` (now includes `google_client_id`) — admin only
+- `GET /api/admin/users` (includes `phone`, `is_squad_leader`, `team_approved`) / `PUT /api/admin/users/:id` (body: `{ "isAdmin"?, "isSquadLeader"?, "teamApproved"?, "teamId"? }`) / `DELETE /api/admin/users/:id` — admin only
 - `POST /api/admin/teams` — admin only, create a team
 - `PUT /api/admin/teams/:id` — admin only, body: `{ "name" }`, rename a team
 - `DELETE /api/admin/teams/:id` — admin only, cascades to that team's shooters/rounds/scores; blocked while users are still assigned to it
@@ -246,13 +314,19 @@ below each.
 - `PUT /api/admin/rounds/:id` — admin only, body: `{ "date", "yardage", "roundNumber", "teamId"?, "shooters": [{ "name", "stations", "total", "subFor"? }] }` — replaces the round's date/round number/yardage/scores; passing a different `teamId` moves the round to that team and re-matches shooters against its roster
 - `DELETE /api/admin/rounds/:id` — admin only, deletes any round regardless of team
 - `GET /api/teams` — list all teams (public, used by the registration form)
-- `POST /api/rounds` — body: `{ "date": "YYYY-MM-DD", "yardage": n or null, "roundNumber": n (default 1), "teamId"? (admin only, logs the round for a different team), "shooters": [{ "name", "stations": [n,n,n,n,n], "total": n, "subFor": "team member's name" or null }] }` — requires sign-in, scoped to your team automatically (non-admins can't override `teamId`)
-- `GET /api/rounds` — every saved round for your team, each shooter entry includes `subFor` if they were subbing — requires sign-in
+- `POST /api/rounds` — body: `{ "date": "YYYY-MM-DD", "yardage": n or null, "roundNumber": n (default 1), "teamId"? (admin only, logs the round for a different team), "shooters": [{ "name", "stations": [n,n,n,n,n], "total": n, "subFor": "team member's name" or null }] }` — requires sign-in **and an approved team**, scoped to your team automatically (non-admins can't override `teamId`)
+- `GET /api/rounds` — every saved round for your team, each shooter entry includes `subFor` if they were subbing — requires sign-in and an approved team
 - `DELETE /api/rounds/:id` — requires sign-in, only deletes rounds belonging to your own team
-- `GET /api/stats/leaderboard` — requires sign-in, scoped to your team, **rolls substitute scores into the team member they subbed for**
-- `GET /api/stats/trends` — requires sign-in, scoped to your team, per actual shooter (never rolled up)
+- `GET /api/stats/leaderboard` — requires sign-in and an approved team, scoped to your team, **rolls substitute scores into the team member they subbed for**
+- `GET /api/stats/trends` — requires sign-in and an approved team, scoped to your team, per actual shooter (never rolled up)
 - `GET /api/site/leaderboard` — requires sign-in, cross-team scoreboard: `{ individuals: [...], teams: [...] }`, each ranked by total combined score, top 10, never rolled up
-- `POST /api/extract` — body: `{ "image": "<base64, no data: prefix>" }` — requires sign-in, returns parsed `{date, yardage, shooters}` read from the photo
+- `POST /api/extract` — body: `{ "image": "<base64, no data: prefix>" }` — requires sign-in and an approved team, returns parsed `{date, yardage, shooters}` read from the photo
+
+Routes marked "requires an approved team" return `403` for a signed-in
+account that hasn't picked a team yet, or whose join request is still
+pending — the frontend routes those cases to the team-pick or
+waiting-for-approval screen automatically rather than hitting these
+endpoints in the first place.
 
 ## Local development without Docker
 

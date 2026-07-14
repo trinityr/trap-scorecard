@@ -6,11 +6,20 @@ CREATE TABLE IF NOT EXISTS teams (
 CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
-  password_hash TEXT NOT NULL,
+  password_hash TEXT,
+  google_id TEXT UNIQUE,
   name TEXT,
   phone TEXT,
   address TEXT,
   is_admin BOOLEAN NOT NULL DEFAULT false,
+  -- Squad Leader: a per-team title that grants approval power over pending
+  -- teammates on their own team. Toggled by an admin, or auto-granted to
+  -- whoever creates a brand-new team.
+  is_squad_leader BOOLEAN NOT NULL DEFAULT false,
+  -- False while a join-an-existing-team request is awaiting approval from
+  -- a Squad Leader or admin. True for accounts that created their own team
+  -- (nobody else to approve them) and for the very first account overall.
+  team_approved BOOLEAN NOT NULL DEFAULT true,
   team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

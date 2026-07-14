@@ -1,9 +1,10 @@
 import { Router, Request, Response } from "express";
 import { pool } from "../db";
-import { requireAuth } from "../auth";
+import { requireAuth, requireApprovedTeam } from "../auth";
 
 const router = Router();
 router.use(requireAuth);
+router.use(requireApprovedTeam);
 
 // GET /api/stats/leaderboard - the Team Leaderboard. Unlike /trends below,
 // this one rolls a substitute's score into the line of the team member

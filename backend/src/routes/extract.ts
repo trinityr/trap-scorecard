@@ -1,9 +1,10 @@
 import { Router, Request, Response } from "express";
-import { requireAuth } from "../auth";
+import { requireAuth, requireApprovedTeam } from "../auth";
 import { getSetting } from "../settings";
 
 const router = Router();
 router.use(requireAuth);
+router.use(requireApprovedTeam);
 
 const EXTRACT_PROMPT = `You are reading a handwritten trap shooting scoresheet photographed by a phone camera. Each row is one shooter. Typically there are 5 stations (columns), each scored out of 5 (hits out of 5 clay targets), plus a total out of 25. Column headers might read 1-5 or STA 1-STA 5, plus TOTAL or TOT. Read the handwriting carefully, including any cross-outs or corrections, using the corrected value. If a value is illegible or missing, use null rather than guessing. If you can find a date on the sheet, include it as YYYY-MM-DD, otherwise use null. If the sheet shows a yardage or yard line for the round (e.g. "16 YD", "16 YARD LINE", a single number near the top like 16-27), include it as a plain integer; this is one value for the whole sheet, not per shooter — if you can't find one, use null. Respond with ONLY raw JSON and nothing else — no markdown fences, no preamble like "Looking at the image...", no explanation before or after the JSON — matching exactly this schema: {"date": "YYYY-MM-DD or null", "yardage": "integer or null", "shooters": [{"name": "string", "stations": [n,n,n,n,n] each 0-5 or null per entry if unreadable, "total": number or null}]}`;
 

@@ -1,9 +1,33 @@
 import { Router, Request, Response } from "express";
+import { OAuth2Client } from "google-auth-library";
 import { pool } from "../db";
 import { hashPassword, verifyPassword, requireAuth } from "../auth";
 import { getSetting } from "../settings";
 
 const router = Router();
+
+// Shared session-shape builder so /login, /register, /google, and /team all
+// produce an identical req.session.user object.
+function buildSessionUser(row: any, teamName: string | undefined) {
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name,
+    phone: row.phone,
+    address: row.address,
+    isAdmin: row.is_admin,
+    isSquadLeader: row.is_squad_leader,
+    teamId: row.team_id,
+    teamName,
+    teamApproved: row.team_approved,
+  };
+}
+
+async function lookupTeamName(teamId: number | null): Promise<string | undefined> {
+  if (!teamId) return undefined;
+  const t = await pool.query("SELECT name FROM teams WHERE id = $1", [teamId]);
+  return t.rows[0]?.name;
+}
 
 // POST /api/auth/register
 router.post("/register", async (req: Request, res: Response) => {
@@ -42,7 +66,8 @@ router.post("/register", async (req: Request, res: Response) => {
 
     let teamIdToUse: number | null = null;
     const trimmedNewTeamName = String(newTeamName || "").trim();
-    if (trimmedNewTeamName) {
+    const createdNewTeam = Boolean(trimmedNewTeamName);
+    if (createdNewTeam) {
       const teamResult = await client.query(
         `INSERT INTO teams (name) VALUES ($1)
          ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
@@ -59,29 +84,27 @@ router.post("/register", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Pick an existing team or create a new one." });
     }
 
+    // Whoever creates a brand-new team is auto-approved and becomes its
+    // Squad Leader (nobody else exists yet who could approve them). Joining
+    // an existing team needs a Squad Leader or admin to approve the
+    // request — unless this is the very first account on the whole app,
+    // which is also auto-approved for the same reason.
+    const teamApproved = isFirstUser || createdNewTeam;
+    const isSquadLeader = createdNewTeam;
+
     const passwordHash = await hashPassword(String(password));
     const userResult = await client.query(
-      `INSERT INTO users (email, password_hash, name, is_admin, team_id)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, email, name, phone, address, is_admin, team_id`,
-      [cleanEmail, passwordHash, cleanName, isFirstUser, teamIdToUse]
+      `INSERT INTO users (email, password_hash, name, is_admin, is_squad_leader, team_approved, team_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, email, name, phone, address, is_admin, is_squad_leader, team_approved, team_id`,
+      [cleanEmail, passwordHash, cleanName, isFirstUser, isSquadLeader, teamApproved, teamIdToUse]
     );
 
     await client.query("COMMIT");
 
     const user = userResult.rows[0];
-    const teamRow = await pool.query("SELECT name FROM teams WHERE id = $1", [user.team_id]);
-
-    req.session.user = {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      phone: user.phone,
-      address: user.address,
-      isAdmin: user.is_admin,
-      teamId: user.team_id,
-      teamName: teamRow.rows[0]?.name,
-    };
+    const teamName = await lookupTeamName(user.team_id);
+    req.session.user = buildSessionUser(user, teamName);
     res.status(201).json(req.session.user);
   } catch (err) {
     if (client) {
@@ -108,11 +131,14 @@ router.post("/login", async (req: Request, res: Response) => {
 
   try {
     const result = await pool.query(
-      "SELECT id, email, password_hash, name, phone, address, is_admin, team_id FROM users WHERE email = $1",
+      "SELECT id, email, password_hash, name, phone, address, is_admin, is_squad_leader, team_approved, team_id FROM users WHERE email = $1",
       [cleanEmail]
     );
     const row = result.rows[0];
-    if (!row) {
+    if (!row || !row.password_hash) {
+      // No password on file (e.g. a Google-only account) — same generic
+      // error as a wrong password, so we don't leak which accounts exist
+      // or how they authenticate.
       return res.status(401).json({ error: "Invalid email or password." });
     }
     const ok = await verifyPassword(String(password), row.password_hash);
@@ -120,26 +146,190 @@ router.post("/login", async (req: Request, res: Response) => {
       return res.status(401).json({ error: "Invalid email or password." });
     }
 
-    let teamName: string | undefined;
-    if (row.team_id) {
-      const t = await pool.query("SELECT name FROM teams WHERE id = $1", [row.team_id]);
-      teamName = t.rows[0]?.name;
-    }
-
-    req.session.user = {
-      id: row.id,
-      email: row.email,
-      name: row.name,
-      phone: row.phone,
-      address: row.address,
-      isAdmin: row.is_admin,
-      teamId: row.team_id,
-      teamName,
-    };
+    const teamName = await lookupTeamName(row.team_id);
+    req.session.user = buildSessionUser(row, teamName);
     res.json(req.session.user);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Could not sign in." });
+  }
+});
+
+// POST /api/auth/google - sign in or register with a Google Identity
+// Services ID token (the "credential" a rendered Google button hands back
+// to its callback). Three outcomes for the verified Google account:
+//   1. google_id already on file -> sign that account in.
+//   2. No google_id match, but the verified email matches an existing
+//      password account -> link this Google identity to it (auto-link),
+//      then sign in. From then on that account can sign in either way.
+//   3. No match at all -> create a brand-new, teamless account. The
+//      frontend sees teamId: null in the response and shows the "pick your
+//      team" step, same as the tail end of registration.
+router.post("/google", async (req: Request, res: Response) => {
+  const { credential } = req.body || {};
+  if (!credential || typeof credential !== "string") {
+    return res.status(400).json({ error: "Missing Google credential." });
+  }
+
+  const clientId = await getSetting("google_client_id", process.env.GOOGLE_CLIENT_ID);
+  if (!clientId) {
+    return res.status(500).json({ error: "Google sign-in isn't configured yet. An admin needs to set a Google Client ID in the Admin panel." });
+  }
+
+  let payload;
+  try {
+    const client = new OAuth2Client(clientId);
+    const ticket = await client.verifyIdToken({ idToken: credential, audience: clientId });
+    payload = ticket.getPayload();
+  } catch (err) {
+    console.error("Google token verification failed:", err);
+    return res.status(401).json({ error: "Could not verify that Google account." });
+  }
+
+  if (!payload || !payload.email || !payload.email_verified) {
+    return res.status(401).json({ error: "That Google account doesn't have a verified email." });
+  }
+
+  const googleId = payload.sub;
+  const cleanEmail = payload.email.trim().toLowerCase();
+  const googleName = payload.name ? String(payload.name).trim() : null;
+
+  let client;
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    const byGoogleId = await client.query(
+      "SELECT id, email, name, phone, address, is_admin, is_squad_leader, team_approved, team_id FROM users WHERE google_id = $1",
+      [googleId]
+    );
+    if (byGoogleId.rows.length > 0) {
+      await client.query("COMMIT");
+      const user = byGoogleId.rows[0];
+      const teamName = await lookupTeamName(user.team_id);
+      req.session.user = buildSessionUser(user, teamName);
+      return res.json(req.session.user);
+    }
+
+    const byEmail = await client.query(
+      "SELECT id, email, name, phone, address, is_admin, is_squad_leader, team_approved, team_id FROM users WHERE email = $1",
+      [cleanEmail]
+    );
+    if (byEmail.rows.length > 0) {
+      // Auto-link: this email already has an account (password-based, most
+      // likely). Google has verified they own this email address, so we
+      // attach this Google identity to the existing account rather than
+      // creating a duplicate.
+      const linked = await client.query(
+        "UPDATE users SET google_id = $1 WHERE id = $2 RETURNING id, email, name, phone, address, is_admin, is_squad_leader, team_approved, team_id",
+        [googleId, byEmail.rows[0].id]
+      );
+      await client.query("COMMIT");
+      const user = linked.rows[0];
+      const teamName = await lookupTeamName(user.team_id);
+      req.session.user = buildSessionUser(user, teamName);
+      return res.json(req.session.user);
+    }
+
+    const countResult = await client.query("SELECT COUNT(*)::int AS c FROM users");
+    const isFirstUser = countResult.rows[0].c === 0;
+    if (!isFirstUser) {
+      const allowRegistration = await getSetting("allow_registration", "true");
+      if (allowRegistration === "false") {
+        await client.query("ROLLBACK");
+        return res.status(403).json({ error: "Registration is currently closed. Ask an admin to add you." });
+      }
+    }
+
+    const created = await client.query(
+      `INSERT INTO users (email, google_id, name, is_admin, team_id, team_approved)
+       VALUES ($1, $2, $3, $4, NULL, true)
+       RETURNING id, email, name, phone, address, is_admin, is_squad_leader, team_approved, team_id`,
+      [cleanEmail, googleId, googleName, isFirstUser]
+    );
+    await client.query("COMMIT");
+    const user = created.rows[0];
+    req.session.user = buildSessionUser(user, undefined);
+    res.status(201).json(req.session.user);
+  } catch (err) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackErr) {
+        console.error("Rollback also failed:", rollbackErr);
+      }
+    }
+    console.error(err);
+    res.status(500).json({ error: "Could not sign in with Google." });
+  } finally {
+    if (client) client.release();
+  }
+});
+
+// POST /api/auth/team - the "pick your team" step for an account that
+// doesn't have one yet (currently only reachable via a brand-new Google
+// sign-in). Same approval rules as registration: creating a new team
+// auto-approves you and makes you its Squad Leader; joining an existing
+// team needs a Squad Leader or admin to approve you, unless you're already
+// an admin (the very first account on the app, most likely).
+router.post("/team", requireAuth, async (req: Request, res: Response) => {
+  if (req.session.user!.teamId) {
+    return res.status(400).json({ error: "You already have a team. Ask an admin if you need to switch teams." });
+  }
+
+  const { teamId, newTeamName } = req.body || {};
+  let client;
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    let teamIdToUse: number | null = null;
+    const trimmedNewTeamName = String(newTeamName || "").trim();
+    const createdNewTeam = Boolean(trimmedNewTeamName);
+    if (createdNewTeam) {
+      const teamResult = await client.query(
+        `INSERT INTO teams (name) VALUES ($1)
+         ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+         RETURNING id`,
+        [trimmedNewTeamName]
+      );
+      teamIdToUse = teamResult.rows[0].id;
+    } else if (teamId) {
+      teamIdToUse = Number(teamId);
+    }
+
+    if (!teamIdToUse) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Pick an existing team or create a new one." });
+    }
+
+    const teamApproved = createdNewTeam || req.session.user!.isAdmin;
+    const grantSquadLeader = createdNewTeam;
+
+    const result = await client.query(
+      `UPDATE users SET team_id = $1, team_approved = $2, is_squad_leader = is_squad_leader OR $3
+       WHERE id = $4
+       RETURNING id, email, name, phone, address, is_admin, is_squad_leader, team_approved, team_id`,
+      [teamIdToUse, teamApproved, grantSquadLeader, req.session.user!.id]
+    );
+    await client.query("COMMIT");
+
+    const user = result.rows[0];
+    const teamName = await lookupTeamName(user.team_id);
+    req.session.user = buildSessionUser(user, teamName);
+    res.json(req.session.user);
+  } catch (err) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackErr) {
+        console.error("Rollback also failed:", rollbackErr);
+      }
+    }
+    console.error(err);
+    res.status(500).json({ error: "Could not save your team." });
+  } finally {
+    if (client) client.release();
   }
 });
 
@@ -171,7 +361,7 @@ router.put("/me", requireAuth, async (req: Request, res: Response) => {
 
   try {
     const result = await pool.query(
-      "UPDATE users SET name = $1, phone = $2, address = $3 WHERE id = $4 RETURNING id, email, name, phone, address, is_admin, team_id",
+      "UPDATE users SET name = $1, phone = $2, address = $3 WHERE id = $4 RETURNING id, email, name, phone, address, is_admin, is_squad_leader, team_approved, team_id",
       [cleanName || null, cleanPhone || null, cleanAddress || null, req.session.user!.id]
     );
     const row = result.rows[0];

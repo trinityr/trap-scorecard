@@ -9,10 +9,12 @@ import { getSetting } from "./settings";
 import authRouter from "./routes/auth";
 import adminRouter from "./routes/admin";
 import teamsRouter from "./routes/teams";
+import teamRouter from "./routes/team";
 import roundsRouter from "./routes/rounds";
 import statsRouter from "./routes/stats";
 import extractRouter from "./routes/extract";
 import siteRouter from "./routes/site";
+import publicSettingsRouter from "./routes/public";
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -87,10 +89,12 @@ app.get("/api/health", (_req, res) => {
 app.use("/api/auth", authRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/teams", teamsRouter);
+app.use("/api/team", teamRouter);
 app.use("/api/rounds", roundsRouter);
 app.use("/api/stats", statsRouter);
 app.use("/api/extract", extractRouter);
 app.use("/api/site", siteRouter);
+app.use("/api/public-settings", publicSettingsRouter);
 
 // Serve the frontend — must come after the /api routes above so those
 // take priority.

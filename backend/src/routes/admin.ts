@@ -14,6 +14,9 @@ router.get("/settings", async (_req: Request, res: Response) => {
       anthropic_api_key_set: Boolean(settings.anthropic_api_key || process.env.ANTHROPIC_API_KEY),
       cors_origin: settings.cors_origin || process.env.CORS_ORIGIN || "*",
       allow_registration: settings.allow_registration ?? "true",
+      // Not secret (it's meant to be embedded in the frontend), so this is
+      // returned as-is rather than masked like the Anthropic key above.
+      google_client_id: settings.google_client_id || process.env.GOOGLE_CLIENT_ID || "",
     });
   } catch (err) {
     console.error(err);
@@ -23,7 +26,7 @@ router.get("/settings", async (_req: Request, res: Response) => {
 
 // PUT /api/admin/settings
 router.put("/settings", async (req: Request, res: Response) => {
-  const { anthropic_api_key, cors_origin, allow_registration } = req.body || {};
+  const { anthropic_api_key, cors_origin, allow_registration, google_client_id } = req.body || {};
   try {
     if (typeof anthropic_api_key === "string" && anthropic_api_key.trim()) {
       await setSetting("anthropic_api_key", anthropic_api_key.trim());
@@ -33,6 +36,9 @@ router.put("/settings", async (req: Request, res: Response) => {
     }
     if (typeof allow_registration === "boolean") {
       await setSetting("allow_registration", String(allow_registration));
+    }
+    if (typeof google_client_id === "string") {
+      await setSetting("google_client_id", google_client_id.trim());
     }
     res.json({ ok: true });
   } catch (err) {
@@ -45,7 +51,7 @@ router.put("/settings", async (req: Request, res: Response) => {
 router.get("/users", async (_req: Request, res: Response) => {
   try {
     const result = await pool.query(`
-      SELECT u.id, u.email, u.name, u.phone, u.is_admin, u.team_id, t.name AS team_name, u.created_at
+      SELECT u.id, u.email, u.name, u.phone, u.is_admin, u.is_squad_leader, u.team_approved, u.team_id, t.name AS team_name, u.created_at
       FROM users u
       LEFT JOIN teams t ON t.id = u.team_id
       ORDER BY u.created_at ASC
@@ -59,7 +65,7 @@ router.get("/users", async (_req: Request, res: Response) => {
 
 // PUT /api/admin/users/:id
 router.put("/users/:id", async (req: Request, res: Response) => {
-  const { isAdmin, teamId } = req.body || {};
+  const { isAdmin, isSquadLeader, teamApproved, teamId } = req.body || {};
   const fields: string[] = [];
   const values: any[] = [];
   let i = 1;
@@ -67,6 +73,14 @@ router.put("/users/:id", async (req: Request, res: Response) => {
   if (typeof isAdmin === "boolean") {
     fields.push(`is_admin = $${i++}`);
     values.push(isAdmin);
+  }
+  if (typeof isSquadLeader === "boolean") {
+    fields.push(`is_squad_leader = $${i++}`);
+    values.push(isSquadLeader);
+  }
+  if (typeof teamApproved === "boolean") {
+    fields.push(`team_approved = $${i++}`);
+    values.push(teamApproved);
   }
   if (teamId !== undefined) {
     fields.push(`team_id = $${i++}`);

@@ -4,6 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Trap Line Stats</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
@@ -118,6 +119,10 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
 .bar-fill{height:100%;background:var(--accent-clay);}
 .clickable{cursor:pointer;}
 .clickable:hover{background:var(--bg-panel-raised);}
+.badge-sl{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:50%;background:var(--accent-clay);color:#1a0f08;font-family:'Oswald',sans-serif;font-weight:700;font-size:10px;margin-left:5px;vertical-align:middle;}
+.divider{display:flex;align-items:center;gap:10px;margin:14px 0;color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--line);}
+.center-wrap{max-width:380px;margin:40px auto;padding:0 16px;}
 @media(max-width:520px){main{padding:16px 12px;} .lb-avg{width:54px;font-size:15px;}}
 </style>
 </head>
@@ -132,6 +137,11 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
 </div>
 
 <div class="auth-wrap" id="authWrap">
+  <div class="card" id="googleSignInCard" style="display:none">
+    <div id="googleButtonContainer" style="display:flex;justify-content:center"></div>
+    <div class="note" style="text-align:center;margin-top:10px">Works for signing in or creating a new account.</div>
+  </div>
+  <div class="divider" id="googleDivider" style="display:none">or use email</div>
   <div class="auth-tabs">
     <button class="auth-tab active" data-authtab="login">Sign in</button>
     <button class="auth-tab" data-authtab="register">Register</button>
@@ -160,6 +170,35 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     <button class="btn" id="registerBtn" style="width:100%">Create account</button>
     <div class="note">The very first account created on this app becomes an admin automatically.</div>
     <div class="error" id="registerError"></div>
+  </div>
+</div>
+
+<div class="center-wrap" id="teamPickWrap" style="display:none">
+  <div class="card">
+    <h3>Pick your team</h3>
+    <div class="note" style="margin-top:0">One more step — join an existing team or start a new one.</div>
+    <div class="field">
+      <label>Team</label>
+      <select id="teamPickSelect">
+        <option value="__new__">+ Create a new team</option>
+      </select>
+    </div>
+    <div class="field" id="teamPickNewField"><label>New team name</label><input type="text" id="teamPickNewName" placeholder="e.g. Saturday Squad"/></div>
+    <button class="btn" id="teamPickBtn" style="width:100%">Continue</button>
+    <div class="error" id="teamPickError"></div>
+    <div class="note">Creating a new team makes you its Squad Leader, approved right away. Joining an existing team needs approval from that team's Squad Leader or an admin first.</div>
+    <button class="btn ghost small" id="teamPickSignOutBtn" style="margin-top:6px;width:100%">Sign out</button>
+  </div>
+</div>
+
+<div class="center-wrap" id="waitingWrap" style="display:none">
+  <div class="card">
+    <h3>Almost there</h3>
+    <div class="note" style="margin-top:0" id="waitingText">Your request to join is waiting for approval from a Squad Leader or admin.</div>
+    <div class="row-actions">
+      <button class="btn ghost small" id="waitingCheckBtn">Check again</button>
+      <button class="btn ghost small" id="waitingSignOutBtn">Sign out</button>
+    </div>
   </div>
 </div>
 
@@ -296,6 +335,14 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     </div>
   </section>
 
+  <section class="panel" id="panel-team">
+    <div class="card">
+      <h3>Pending team requests</h3>
+      <div class="note" style="margin-top:0">People who picked your team but still need approval from a Squad Leader or admin.</div>
+      <div id="teamPendingBody"></div>
+    </div>
+  </section>
+
   <section class="panel" id="panel-admin">
     <div class="card">
       <h3>App settings</h3>
@@ -311,6 +358,10 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
         <input type="checkbox" id="settingAllowRegistration"/>
         <label style="margin:0">Allow new people to register</label>
       </div>
+      <div class="field">
+        <label>Google Client ID</label>
+        <input type="text" id="settingGoogleClientId" placeholder="xxxxxxxx.apps.googleusercontent.com"/>
+      </div>
       <button class="btn" id="saveSettingsBtn">Save settings</button>
       <div class="toast" id="settingsToast">Saved.</div>
       <div class="error" id="settingsError"></div>
@@ -318,7 +369,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     <div class="card admin-users-table">
       <h3>Users</h3>
       <table class="tbl">
-        <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Team</th><th>Admin</th><th>Joined</th><th></th></tr></thead>
+        <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Team</th><th>Admin</th><th>Squad Leader</th><th>Approved</th><th>Joined</th><th></th></tr></thead>
         <tbody id="adminUsersBody"></tbody>
       </table>
     </div>
@@ -416,7 +467,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     btn.disabled = true; btn.textContent = 'Signing in...';
     try{
       const user = await api('/auth/login', {method:'POST', body: JSON.stringify({email, password})});
-      onSignedIn(user);
+      handleAuthResult(user);
     }catch(e){ showAuthError('#loginError', e.message); }
     finally{ btn.disabled = false; btn.textContent = 'Sign in'; }
   });
@@ -434,18 +485,115 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     btn.disabled = true; btn.textContent = 'Creating account...';
     try{
       const user = await api('/auth/register', {method:'POST', body: JSON.stringify(body)});
-      onSignedIn(user);
+      handleAuthResult(user);
     }catch(e){ showAuthError('#registerError', e.message); }
     finally{ btn.disabled = false; btn.textContent = 'Create account'; }
   });
 
   function showAuthError(sel, msg){ const el = $(sel); el.textContent = msg; el.style.display='block'; }
 
+  async function signOut(){
+    try{ await api('/auth/logout', {method:'POST'}); }catch(e){}
+    location.reload();
+  }
+
+  // Routes a freshly-authenticated user (from login, register, a Google
+  // credential, the team-pick step, or the boot-time /auth/me check) to the
+  // right screen: still needs a team, still waiting on approval for the
+  // team they picked, or fully in.
+  function handleAuthResult(user){
+    if(!user.teamId){ showTeamPickScreen(user); return; }
+    if(!user.teamApproved){ showWaitingScreen(user); return; }
+    onSignedIn(user);
+  }
+
+  function hideAllTopLevelScreens(){
+    $('#authWrap').style.display='none';
+    $('#teamPickWrap').style.display='none';
+    $('#waitingWrap').style.display='none';
+    $('#appShell').style.display='none';
+  }
+
+  async function showTeamPickScreen(user){
+    state.user = user;
+    hideAllTopLevelScreens();
+    $('#teamPickWrap').style.display='block';
+    $('#teamPickError').style.display='none';
+    try{
+      const teams = await api('/teams');
+      state.teams = teams;
+      const sel = $('#teamPickSelect');
+      sel.innerHTML = teams.map(t=>`<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('') + '<option value="__new__">+ Create a new team</option>';
+      if(teams.length===0) sel.value = '__new__';
+      toggleTeamPickNewField();
+    }catch(e){ console.error(e); }
+  }
+  function toggleTeamPickNewField(){
+    $('#teamPickNewField').style.display = $('#teamPickSelect').value==='__new__' ? 'block' : 'none';
+  }
+  $('#teamPickSelect').addEventListener('change', toggleTeamPickNewField);
+  $('#teamPickSignOutBtn').addEventListener('click', signOut);
+  $('#teamPickBtn').addEventListener('click', async ()=>{
+    $('#teamPickError').style.display='none';
+    const sel = $('#teamPickSelect').value;
+    const body = {};
+    if(sel==='__new__') body.newTeamName = $('#teamPickNewName').value.trim();
+    else body.teamId = Number(sel);
+    const btn = $('#teamPickBtn');
+    btn.disabled = true; btn.textContent = 'Saving...';
+    try{
+      const user = await api('/auth/team', {method:'POST', body: JSON.stringify(body)});
+      handleAuthResult(user);
+    }catch(e){ const el = $('#teamPickError'); el.textContent = e.message; el.style.display='block'; }
+    finally{ btn.disabled = false; btn.textContent = 'Continue'; }
+  });
+
+  function showWaitingScreen(user){
+    state.user = user;
+    hideAllTopLevelScreens();
+    $('#waitingWrap').style.display='block';
+    $('#waitingText').textContent = `Your request to join ${user.teamName || 'this team'} is waiting for approval from a Squad Leader or admin.`;
+  }
+  $('#waitingSignOutBtn').addEventListener('click', signOut);
+  $('#waitingCheckBtn').addEventListener('click', async ()=>{
+    const btn = $('#waitingCheckBtn');
+    btn.disabled = true; btn.textContent = 'Checking...';
+    try{
+      const user = await api('/auth/me');
+      handleAuthResult(user);
+    }catch(e){ /* still not signed in somehow; leave them on this screen */ }
+    finally{ btn.disabled = false; btn.textContent = 'Check again'; }
+  });
+
+  // ---------- Google Sign-In ----------
+  async function initGoogleSignIn(){
+    let clientId;
+    try{
+      const settings = await api('/public-settings');
+      clientId = settings.googleClientId;
+    }catch(e){ return; }
+    if(!clientId || typeof google === 'undefined' || !google.accounts) return;
+    $('#googleSignInCard').style.display='block';
+    $('#googleDivider').style.display='flex';
+    google.accounts.id.initialize({ client_id: clientId, callback: handleGoogleCredential });
+    google.accounts.id.renderButton($('#googleButtonContainer'), { theme: 'outline', size: 'large', width: 300 });
+  }
+
+  async function handleGoogleCredential(response){
+    $('#loginError').style.display='none';
+    $('#registerError').style.display='none';
+    try{
+      const user = await api('/auth/google', {method:'POST', body: JSON.stringify({credential: response.credential})});
+      handleAuthResult(user);
+    }catch(e){ showAuthError('#loginError', e.message); }
+  }
+
   function onSignedIn(user){
     state.user = user;
-    $('#authWrap').style.display='none';
+    hideAllTopLevelScreens();
     renderSessionBar();
     renderAdminTabVisibility();
+    renderTeamTabVisibility();
     setupAdminTeamPicker();
     $('#appShell').style.display='block';
     startApp();
@@ -472,11 +620,9 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
   function renderSessionBar(){
     const bar = $('#sessionBar');
     bar.style.display='flex';
-    bar.innerHTML = `<span><b>${escapeHtml(state.user.name || state.user.email)}</b> · Team: <b>${escapeHtml(state.user.teamName||'—')}</b>${state.user.isAdmin?' · <span class="badge">ADMIN</span>':''}</span><button class="btn ghost small" id="logoutBtn">Sign out</button>`;
-    $('#logoutBtn').addEventListener('click', async ()=>{
-      await api('/auth/logout', {method:'POST'});
-      location.reload();
-    });
+    const slBadge = state.user.isSquadLeader ? '<span class="badge-sl" title="Squad Leader">C</span>' : '';
+    bar.innerHTML = `<span><b>${escapeHtml(state.user.name || state.user.email)}</b>${slBadge} · Team: <b>${escapeHtml(state.user.teamName||'—')}</b>${state.user.isAdmin?' · <span class="badge">ADMIN</span>':''}</span><button class="btn ghost small" id="logoutBtn">Sign out</button>`;
+    $('#logoutBtn').addEventListener('click', signOut);
   }
 
   function renderAdminTabVisibility(){
@@ -485,6 +631,19 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     const btn = document.createElement('button');
     btn.className = 'tab'; btn.dataset.tab = 'admin'; btn.textContent = 'Admin';
     $('#tabsBar').appendChild(btn);
+    bindTabButton(btn);
+  }
+
+  // Squad Leaders (and admins, for convenience) get a "Team" tab for
+  // approving pending join requests to their own team.
+  function renderTeamTabVisibility(){
+    if(!state.user.isSquadLeader && !state.user.isAdmin) return;
+    if(document.querySelector('.tab[data-tab="team"]')) return;
+    const btn = document.createElement('button');
+    btn.className = 'tab'; btn.dataset.tab = 'team'; btn.textContent = 'Team';
+    const adminBtn = document.querySelector('.tab[data-tab="admin"]');
+    if(adminBtn) $('#tabsBar').insertBefore(btn, adminBtn);
+    else $('#tabsBar').appendChild(btn);
     bindTabButton(btn);
   }
 
@@ -498,6 +657,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
       if(btn.dataset.tab==='trends') renderTrends();
       if(btn.dataset.tab==='history') renderHistory();
       if(btn.dataset.tab==='profile') loadProfilePanel();
+      if(btn.dataset.tab==='team') loadTeamPanel();
       if(btn.dataset.tab==='admin') loadAdminPanel();
     });
   }
@@ -1009,6 +1169,36 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     finally{ btn.disabled=false; btn.textContent='Save profile'; }
   });
 
+  // ---------- Team panel (Squad Leader / admin pending approvals) ----------
+  async function loadTeamPanel(){
+    const el = $('#teamPendingBody');
+    el.innerHTML = '<div class="empty">Loading…</div>';
+    try{
+      const pending = await api('/team/pending');
+      if(pending.length===0){ el.innerHTML = '<div class="empty">No pending requests.</div>'; return; }
+      el.innerHTML = pending.map(u=>`
+        <div class="lb-row">
+          <div style="flex:1">
+            <div class="lb-name">${escapeHtml(u.name||u.email)}</div>
+            <div class="lb-sub">${escapeHtml(u.email)}${u.phone?' · '+escapeHtml(u.phone):''}</div>
+          </div>
+          <div class="row-actions" style="margin-top:0">
+            <button class="btn small" onclick="window.__tscApproveTeamRequest(${u.id})">Approve</button>
+            <button class="btn danger small" onclick="window.__tscDenyTeamRequest(${u.id})">Deny</button>
+          </div>
+        </div>`).join('');
+    }catch(e){ el.innerHTML = '<div class="empty">Could not load pending requests: '+escapeHtml(e.message)+'</div>'; }
+  }
+  window.__tscApproveTeamRequest = async function(id){
+    try{ await api('/team/pending/'+id+'/approve', {method:'POST'}); loadTeamPanel(); }
+    catch(e){ alert('Could not approve: '+e.message); }
+  };
+  window.__tscDenyTeamRequest = async function(id){
+    if(!confirm('Deny this request? They will need to pick a team again.')) return;
+    try{ await api('/team/pending/'+id+'/deny', {method:'POST'}); loadTeamPanel(); }
+    catch(e){ alert('Could not deny: '+e.message); }
+  };
+
   // ---------- Admin panel ----------
   async function loadAdminPanel(){
     try{
@@ -1017,6 +1207,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
       $('#settingApiKey').value = '';
       $('#settingCorsOrigin').value = settings.cors_origin;
       $('#settingAllowRegistration').checked = settings.allow_registration !== 'false';
+      $('#settingGoogleClientId').value = settings.google_client_id || '';
     }catch(e){ console.error(e); }
 
     let teams = [];
@@ -1026,11 +1217,13 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
       state.teams = teams;
       $('#adminUsersBody').innerHTML = users.map(u=>`
         <tr>
-          <td>${escapeHtml(u.name||'—')}</td>
+          <td>${escapeHtml(u.name||'—')}${u.is_squad_leader?'<span class="badge-sl" title="Squad Leader">C</span>':''}</td>
           <td>${escapeHtml(u.email)}</td>
           <td class="mono" style="font-size:12px">${escapeHtml(u.phone||'—')}</td>
           <td><select onchange="window.__tscSetUserTeam(${u.id}, this.value)">${teams.map(t=>`<option value="${t.id}" ${t.id===u.team_id?'selected':''}>${escapeHtml(t.name)}</option>`).join('')}</select></td>
           <td><input type="checkbox" ${u.is_admin?'checked':''} onchange="window.__tscSetUserAdmin(${u.id}, this.checked)"/></td>
+          <td><input type="checkbox" ${u.is_squad_leader?'checked':''} onchange="window.__tscSetUserSquadLeader(${u.id}, this.checked)"/></td>
+          <td><input type="checkbox" ${u.team_approved?'checked':''} onchange="window.__tscSetUserApproved(${u.id}, this.checked)"/></td>
           <td class="mono" style="font-size:11px">${new Date(u.created_at).toLocaleDateString()}</td>
           <td><button class="rm" onclick="window.__tscRemoveUser(${u.id})">✕</button></td>
         </tr>`).join('');
@@ -1237,6 +1430,14 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     try{ await api('/admin/users/'+id, {method:'PUT', body: JSON.stringify({isAdmin})}); }
     catch(e){ alert('Could not update: '+e.message); }
   };
+  window.__tscSetUserSquadLeader = async function(id, isSquadLeader){
+    try{ await api('/admin/users/'+id, {method:'PUT', body: JSON.stringify({isSquadLeader})}); loadAdminPanel(); }
+    catch(e){ alert('Could not update: '+e.message); }
+  };
+  window.__tscSetUserApproved = async function(id, teamApproved){
+    try{ await api('/admin/users/'+id, {method:'PUT', body: JSON.stringify({teamApproved})}); }
+    catch(e){ alert('Could not update: '+e.message); }
+  };
   window.__tscRemoveUser = async function(id){
     if(!confirm('Remove this user? They will no longer be able to sign in.')) return;
     try{ await api('/admin/users/'+id, {method:'DELETE'}); loadAdminPanel(); }
@@ -1247,7 +1448,8 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     $('#settingsError').style.display='none';
     const body = {
       cors_origin: $('#settingCorsOrigin').value,
-      allow_registration: $('#settingAllowRegistration').checked
+      allow_registration: $('#settingAllowRegistration').checked,
+      google_client_id: $('#settingGoogleClientId').value.trim()
     };
     const key = $('#settingApiKey').value.trim();
     if(key) body.anthropic_api_key = key;
@@ -1276,9 +1478,10 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
   // ---------- Boot ----------
   (async function init(){
     loadTeamsForRegister();
+    initGoogleSignIn();
     try{
       const user = await api('/auth/me');
-      onSignedIn(user);
+      handleAuthResult(user);
     }catch(e){
       $('#authWrap').style.display='block';
     }
