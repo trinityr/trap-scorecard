@@ -1,0 +1,15 @@
+{
+  "appId": "com.trapstats.app",
+  "appName": "Trap Stats",
+  "webDir": "../backend/public",
+  "backgroundColor": "#14140f",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "backgroundColor": "#14140f",
+      "showSpinner": false
+    }
+  }
+}

@@ -10,6 +10,10 @@
 <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png"/>
 <link rel="manifest" href="/site.webmanifest"/>
 <meta name="theme-color" content="#14140f"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Trap Stats"/>
+<meta name="mobile-web-app-capable" content="yes"/>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
@@ -359,15 +363,25 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
       <div class="card">
         <h3>1 — Upload the sheet</h3>
         <label class="upload" id="uploadZone">
-          <input type="file" accept="image/*" id="fileInput"/>
-          <div id="uploadLabel">Tap to choose a photo of this week's scoresheet</div>
+          <input type="file" accept="image/*" capture="environment" id="fileInput"/>
+          <div id="uploadLabel">Tap to take a photo of this week's scoresheet</div>
           <div class="hint">JPG or PNG, handwritten is fine</div>
           <img id="previewImg" class="preview" style="display:none"/>
         </label>
+        <label class="btn ghost small" id="fileInputAltLabel" style="cursor:pointer;display:inline-block;margin-top:8px">Choose an existing photo instead<input type="file" accept="image/*" id="fileInputAlt" style="display:none"/></label>
+        <div class="field" id="ocrMethodField">
+          <label>Read with</label>
+          <div class="row-actions" id="ocrMethodToggle">
+            <button type="button" class="btn small ocr-method-btn active" data-method="claude">Claude Vision</button>
+            <button type="button" class="btn ghost small ocr-method-btn" data-method="standard">Standard OCR (offline)</button>
+          </div>
+          <div class="hint" id="ocrMethodHint">Claude Vision reads handwriting and corrections best, but needs internet. Standard OCR runs entirely on this device — no internet needed — but is noticeably less accurate on handwriting, so double-check the numbers it fills in.</div>
+        </div>
         <div class="row-actions">
           <button class="btn" id="extractBtn" disabled>Read scoresheet</button>
           <button class="btn ghost" id="manualBtn">Skip photo — enter manually</button>
         </div>
+        <div class="note" id="ocrProgress" style="display:none"></div>
         <div class="error" id="extractError"></div>
       </div>
 
@@ -544,7 +558,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
 <script>
 (function(){
   const COLORS = ['#ff6a2b','#c9a24b','#8ab06a','#6a9ac9','#c96ab0','#c65c4a','#6ac9b0'];
-  const state = { weeks: [], activeTab: 'new', imageBase64: null, draftShooters: [], trendSelected: new Set(), user: null, teams: [], leagues: [], adminEditingRound: null, drilldownReturnTab: null };
+  const state = { weeks: [], activeTab: 'new', imageBase64: null, imageDataUrl: null, ocrMethod: 'claude', draftShooters: [], trendSelected: new Set(), user: null, teams: [], leagues: [], adminEditingRound: null, drilldownReturnTab: null };
   const $ = sel => document.querySelector(sel);
 
   // ---------- Light/dark theme ----------
@@ -876,12 +890,12 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
   }
 
   const fileInput = $('#fileInput');
+  const fileInputAlt = $('#fileInputAlt');
   const previewImg = $('#previewImg');
   const uploadLabel = $('#uploadLabel');
   const extractBtn = $('#extractBtn');
 
-  fileInput.addEventListener('change', (e)=>{
-    const file = e.target.files[0];
+  function handleScoresheetFile(file){
     if(!file) return;
     const reader = new FileReader();
     reader.onload = (ev)=>{
@@ -895,6 +909,7 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
         canvas.getContext('2d').drawImage(img,0,0,w,h);
         const dataUrl = canvas.toDataURL('image/jpeg',0.85);
         state.imageBase64 = dataUrl.split(',')[1];
+        state.imageDataUrl = dataUrl;
         previewImg.src = dataUrl; previewImg.style.display='block';
         uploadLabel.textContent = 'Photo loaded — tap to replace';
         extractBtn.disabled = false;
@@ -902,7 +917,10 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
       img.src = ev.target.result;
     };
     reader.readAsDataURL(file);
-  });
+  }
+
+  fileInput.addEventListener('change', (e)=> handleScoresheetFile(e.target.files[0]));
+  fileInputAlt.addEventListener('change', (e)=> handleScoresheetFile(e.target.files[0]));
 
   $('#manualBtn').addEventListener('click', ()=>{
     const date = todayISO();
@@ -915,38 +933,145 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
 
   extractBtn.addEventListener('click', extractScores);
 
+  // ---------- OCR method toggle (Claude Vision vs on-device Standard OCR) ----------
+  document.querySelectorAll('.ocr-method-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      state.ocrMethod = btn.dataset.method;
+      document.querySelectorAll('.ocr-method-btn').forEach(b=>{
+        const active = b.dataset.method === state.ocrMethod;
+        b.classList.toggle('active', active);
+        b.classList.toggle('ghost', !active);
+      });
+      $('#ocrMethodHint').textContent = state.ocrMethod === 'claude'
+        ? 'Claude Vision reads handwriting and corrections best, but needs internet.'
+        : 'Standard OCR runs entirely on this device — no internet needed — but is noticeably less accurate on handwriting, so double-check the numbers it fills in.';
+    });
+  });
+
+  function applyExtractedResult(parsed){
+    const date = parsed.date && /^\d{4}-\d{2}-\d{2}$/.test(parsed.date) ? parsed.date : todayISO();
+    const rnd = suggestRoundNumber(date);
+    state.draftShooters = (parsed.shooters||[]).map(s=>({
+      name: s.name || '',
+      stations: Array.isArray(s.stations) ? [0,1,2,3,4].map(i=> s.stations[i]!=null? s.stations[i]: null) : [null,null,null,null,null],
+      total: s.total!=null ? s.total : autoTotal(s.stations),
+      subFor: null,
+      roundNumber: rnd
+    }));
+    if(state.draftShooters.length===0) state.draftShooters=[{name:'',stations:[null,null,null,null,null],total:null,subFor:null,roundNumber:rnd}];
+    $('#draftDate').value = date;
+    $('#draftYardage').value = parsed.yardage!=null ? parsed.yardage : '';
+    $('#draftCard').style.display='block';
+    renderDraftTable();
+  }
+
+  function extractFailed(err){
+    console.error(err);
+    $('#extractError').textContent = "Couldn't read that sheet automatically (" + err.message + "). You can still enter scores by hand below.";
+    $('#extractError').style.display='block';
+    const date = todayISO();
+    state.draftShooters = [{name:'',stations:[null,null,null,null,null],total:null,subFor:null,roundNumber:suggestRoundNumber(date)}];
+    $('#draftDate').value = date;
+    $('#draftCard').style.display='block';
+    renderDraftTable();
+  }
+
   async function extractScores(){
     if(!state.imageBase64) return;
     extractBtn.disabled = true; extractBtn.textContent = 'Reading...';
     $('#extractError').style.display='none';
     try{
-      const parsed = await api('/extract', {method:'POST', body: JSON.stringify({image: state.imageBase64})});
-      const date = parsed.date && /^\d{4}-\d{2}-\d{2}$/.test(parsed.date) ? parsed.date : todayISO();
-      const rnd = suggestRoundNumber(date);
-      state.draftShooters = (parsed.shooters||[]).map(s=>({
-        name: s.name || '',
-        stations: Array.isArray(s.stations) ? [0,1,2,3,4].map(i=> s.stations[i]!=null? s.stations[i]: null) : [null,null,null,null,null],
-        total: s.total!=null ? s.total : autoTotal(s.stations),
-        subFor: null,
-        roundNumber: rnd
-      }));
-      if(state.draftShooters.length===0) state.draftShooters=[{name:'',stations:[null,null,null,null,null],total:null,subFor:null,roundNumber:rnd}];
-      $('#draftDate').value = date;
-      $('#draftYardage').value = parsed.yardage!=null ? parsed.yardage : '';
-      $('#draftCard').style.display='block';
-      renderDraftTable();
+      const parsed = state.ocrMethod === 'standard'
+        ? await extractScoresStandardOCR()
+        : await api('/extract', {method:'POST', body: JSON.stringify({image: state.imageBase64})});
+      applyExtractedResult(parsed);
     }catch(err){
-      console.error(err);
-      $('#extractError').textContent = "Couldn't read that sheet automatically (" + err.message + "). You can still enter scores by hand below.";
-      $('#extractError').style.display='block';
-      const date = todayISO();
-      state.draftShooters = [{name:'',stations:[null,null,null,null,null],total:null,subFor:null,roundNumber:suggestRoundNumber(date)}];
-      $('#draftDate').value = date;
-      $('#draftCard').style.display='block';
-      renderDraftTable();
+      extractFailed(err);
     }finally{
       extractBtn.disabled = false; extractBtn.textContent = 'Read scoresheet';
+      $('#ocrProgress').style.display='none';
     }
+  }
+
+  // ---------- Standard OCR (on-device, offline, via vendored Tesseract.js) ----------
+  // Unlike the Claude Vision path, this never leaves the device — no network
+  // call, no API key. Trade-off: plain OCR has no understanding of "this is
+  // a scoresheet table" the way a vision model does, so it can't reliably
+  // tell which number belongs to which shooter/station on its own. Instead
+  // it reads the raw text, then a best-effort line parser tries to line
+  // numbers up into station columns. It's meant as an offline fallback that
+  // still saves some typing, not a drop-in replacement for Claude's accuracy
+  // — the review table below always needs a closer look after this path.
+  let tesseractLoadPromise = null;
+  function loadTesseract(){
+    if(window.Tesseract) return Promise.resolve();
+    if(tesseractLoadPromise) return tesseractLoadPromise;
+    tesseractLoadPromise = new Promise((resolve, reject)=>{
+      const script = document.createElement('script');
+      script.src = '/vendor/tesseract/tesseract.min.js';
+      script.onload = resolve;
+      script.onerror = ()=> reject(new Error('Could not load the on-device OCR engine.'));
+      document.head.appendChild(script);
+    });
+    return tesseractLoadPromise;
+  }
+
+  async function extractScoresStandardOCR(){
+    if(!state.imageDataUrl) throw new Error('No photo loaded.');
+    $('#ocrProgress').style.display='block';
+    $('#ocrProgress').textContent = 'Loading on-device OCR engine…';
+    await loadTesseract();
+
+    const worker = await Tesseract.createWorker('eng', 1, {
+      workerPath: '/vendor/tesseract/worker.min.js',
+      corePath: '/vendor/tesseract/tesseract-core-simd-lstm.wasm.js',
+      langPath: '/vendor/tesseract/',
+      gzip: false,
+      logger: (m)=>{
+        if(m.status && m.progress!=null){
+          $('#ocrProgress').textContent = 'Reading photo on-device: ' + m.status + ' (' + Math.round(m.progress*100) + '%)';
+        }
+      },
+    });
+    try{
+      const { data } = await worker.recognize(state.imageDataUrl);
+      return parseScoresheetText(data.text || '');
+    } finally {
+      await worker.terminate();
+    }
+  }
+
+  // Best-effort parser: scans each line of raw OCR text for a run of small
+  // integers (0-25, since stations are 0-5 and totals top out at 25) and
+  // treats runs of 5 or 6 as one shooter's row (5 stations, +1 optional
+  // total). Any leading letters on the line are used as the shooter's name.
+  // A 4-digit YYYY-MM-DD anywhere in the text is used as the date; a
+  // standalone 2-digit 16-27 number outside a score row is used as yardage.
+  function parseScoresheetText(text){
+    const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
+    let date = null;
+    const dateMatch = text.match(/\b(20\d{2})[-\/](\d{1,2})[-\/](\d{1,2})\b/);
+    if(dateMatch){
+      const [_, y, m, d] = dateMatch;
+      date = y + '-' + String(m).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+    }
+    let yardage = null;
+    const shooters = [];
+    for(const line of lines){
+      const nums = (line.match(/\d{1,2}/g) || []).map(Number).filter(n=> n>=0 && n<=25);
+      const nameMatch = line.match(/^[A-Za-z][A-Za-z.'\- ]{1,30}/);
+      const name = nameMatch ? nameMatch[0].trim() : '';
+      if(!yardage && /\b(1[6-9]|2[0-7])\b/.test(line) && nums.length<=2 && !name){
+        yardage = Number(line.match(/\b(1[6-9]|2[0-7])\b/)[0]);
+        continue;
+      }
+      if(nums.length>=5 && name){
+        const stations = nums.slice(0,5).map(n=> n<=5 ? n : null);
+        const total = nums.length>=6 ? nums[5] : autoTotal(stations);
+        shooters.push({ name, stations, total });
+      }
+    }
+    return { date, yardage, shooters };
   }
 
   function autoTotal(stations){
@@ -1076,9 +1201,11 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
       $('#draftCard').style.display='none';
       previewImg.style.display='none';
       state.imageBase64=null;
-      uploadLabel.textContent = "Tap to choose a photo of this week's scoresheet";
+      state.imageDataUrl=null;
+      uploadLabel.textContent = "Tap to take a photo of this week's scoresheet";
       extractBtn.disabled = true;
       fileInput.value='';
+      fileInputAlt.value='';
       $('#draftYardage').value='';
       renderFieldArc();
     }catch(e){ alert('Could not save: '+e.message); }
@@ -2040,6 +2167,12 @@ table.tbl .total-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;colo
     }
   })();
 })();
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('/sw.js').catch(err=>console.warn('SW registration failed:', err));
+  });
+}
 </script>
 </body>
 </html>

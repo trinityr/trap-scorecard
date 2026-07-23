@@ -11,6 +11,12 @@ stack.
 ```
 docker-compose.yml
 .env.example
+docs/
+  cloud-migration-plan.md  <- notes for a future move off the home network onto a cloud host (not yet done)
+mobile/
+  capacitor.config.json    <- Capacitor shell wrapping backend/public for app-store distribution
+  package.json
+  README.md                <- setup/build instructions (needs Android Studio and/or Xcode, run locally)
 backend/
   Dockerfile
   package.json
@@ -29,6 +35,9 @@ backend/
     010_add_leagues.sql     <- run manually to add the leagues table + teams.league_id
   public/
     index.html              <- the scorecard web app: sign-in/register + admin panel + scoring UI
+    sw.js                    <- service worker (PWA installability + basic offline shell caching)
+    site.webmanifest, favicon*, icon-*.png <- PWA/app icons
+    vendor/tesseract/        <- vendored Tesseract.js (offline "Standard OCR" scoresheet reading)
   src/
     index.ts
     db.ts
@@ -382,6 +391,61 @@ same pattern as `ANTHROPIC_API_KEY` and `GOOGLE_CLIENT_ID`.
 A toggle button in the top-right corner switches between the app's
 default dark theme and a light theme. The choice is remembered per
 browser (`localStorage`) and applies immediately, no reload needed.
+
+## Installing as an app
+
+Trap Stats is a Progressive Web App: a manifest (`site.webmanifest`), an
+icon set, and a service worker (`sw.js`) let a phone or desktop browser
+install it as a standalone app with its own home-screen icon, rather than
+just bookmarking a tab.
+
+- **Android/Chrome/Edge** — open the site, then use the browser's
+  **Install app** option (in the address bar or the ⋮ menu).
+- **iOS/Safari** — open the site, tap the Share icon, then **Add to Home
+  Screen**.
+- **Desktop Chrome/Edge** — an install icon appears in the address bar.
+
+The service worker only caches the app shell and static icons, and always
+prefers a fresh copy from the network when one's reachable — it exists to
+satisfy install requirements and provide a basic offline fallback, not to
+cache aggressively. It does not cache anything under `/api/`, so the app
+still needs a live connection to actually load or submit scores. This
+requires the deployment to be served over HTTPS (any modern reverse proxy
+setup, including the Nginx Proxy Manager setup described above, already
+does this).
+
+### Real Android/iOS app (Capacitor)
+
+The `mobile/` folder wraps this same web app in a [Capacitor](https://capacitorjs.com/)
+native shell so it can be built, signed, and submitted to the Play Store /
+App Store as an actual installable app, rather than a browser-installed
+PWA. It reuses `backend/public` directly as its web assets — no separate
+build step, no code fork. See `mobile/README.md` for setup; building and
+publishing require tooling this repo doesn't include (Android Studio
+and/or Xcode, plus your own developer accounts), so that part has to run
+on your own machine.
+
+## Reading a scoresheet: Claude Vision vs. Standard OCR
+
+The **Read Scoresheet** step in New Round has two engines to choose from,
+via the toggle above the "Read scoresheet" button:
+
+- **Claude Vision** (default) — sends the photo to Claude's vision API
+  (`POST /api/extract`, needs `ANTHROPIC_API_KEY` configured — see Admin →
+  App settings). It understands the sheet as a table, handles cross-outs
+  and corrections, and reads messy handwriting well. Requires internet.
+- **Standard OCR** — runs entirely on-device using a vendored copy of
+  [Tesseract.js](https://github.com/naptha/tesseract.js) (`backend/public/vendor/tesseract/`,
+  ~11MB, cached by the service worker after first use). No network call,
+  no API key, works offline — including inside the Capacitor app. It's
+  plain text recognition with no understanding that it's looking at a
+  scoresheet table, so a best-effort line parser tries to line numbers up
+  into station columns; accuracy on handwriting is noticeably lower than
+  Claude Vision. Always double-check the numbers it fills in before
+  saving.
+
+Either path lands in the same editable review table, so switching engines
+or falling back to typing scores in by hand always works the same way.
 
 ## Leagues
 
